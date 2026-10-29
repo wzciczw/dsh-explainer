@@ -25,3 +25,10 @@ export declare function readFileGrounding(options: FileGroundingOptions): Promis
  * configured cap. Anything outside the session workspace is refused.
  */
 export declare function readFileContext(cwd: string | undefined, filePath: string | undefined, maxChars: number): Promise<string>;
+/**
+ * Visible text of an HTML document: scripts, styles and tags removed.
+ *
+ * This prepares model context only. It never renders, never executes and
+ * never returns markup, so the model reads the words rather than the tags.
+ */
+export declare function htmlToText(html: string): string;

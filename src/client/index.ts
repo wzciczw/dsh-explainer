@@ -3,6 +3,7 @@ import { ExplainerStore } from './store'
 import { Overlay } from './overlay'
 import { ComposerButton } from './composer'
 import { FileMarker } from './file-marker'
+import { installHtmlPreviews } from './html-registration'
 import { STRINGS } from './locales'
 import { STYLES } from './styles'
 
@@ -20,6 +21,7 @@ interface ClientContext {
     register: (namespace: string, dictionaries: unknown) => unknown
     bind: (namespace: string) => (key: string) => string
   }
+  inject?: (names: string[], fn: (ctx: ClientContext) => void) => unknown
   effect: (fn: () => unknown, label?: string) => unknown
   get?: (key: string) => unknown
 }
@@ -65,6 +67,10 @@ export function apply(ctx: ClientContext): void {
       absolutePath: props['absolutePath'] as string,
     }),
   ))
+
+  // Optional HTML preview entry points: registered last, so a missing service
+  // never affects the core seats above.
+  installHtmlPreviews(ctx, store)
 
   ctx.slots.inject('conversation.input.right', () => ctx.slots.register(
     { name: 'conversation.input.right', id: 'explainer.quick', order: 260, label: () => t('quickAsk') },

@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
-import { createRequire } from 'node:module'
 import test from 'node:test'
+import { loadBundleModule } from './bundle-modules.mjs'
 
-const require = createRequire(import.meta.url)
-const { ExplainerStore } = require('../lib/client-build/store.cjs')
+// Load from the shipped bundle so relative imports (the selection shape)
+// resolve exactly as they do in the browser.
+const { ExplainerStore } = loadBundleModule('store')
 
 globalThis.requestAnimationFrame = (callback) => setTimeout(callback, 0)
 globalThis.cancelAnimationFrame = (handle) => clearTimeout(handle)

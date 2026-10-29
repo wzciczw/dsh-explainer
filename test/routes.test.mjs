@@ -37,7 +37,7 @@ function fakeReq(body, method = 'POST') {
   return stream
 }
 
-function harness(connectionRejection = undefined) {
+function harness(connectionRejection = undefined, pluginConfig = {}) {
   const routes = new Map()
   const llmCalls = []
   const llm = {
@@ -69,13 +69,13 @@ function harness(connectionRejection = undefined) {
     effect: (fn) => { fn() },
     logger: { info: () => {}, warn: () => {} },
   }
-  apply(ctx, { maxTokens: 300, inheritContext: true })
+  apply(ctx, { maxTokens: 300, inheritContext: true, ...pluginConfig })
   return { routes, llmCalls }
 }
 
-test('apply registers the config and ask routes', () => {
+test('apply registers the config, models and ask routes', () => {
   const { routes } = harness()
-  assert.deepEqual([...routes.keys()].sort(), ['/explainer/ask', '/explainer/config'])
+  assert.deepEqual([...routes.keys()].sort(), ['/explainer/ask', '/explainer/config', '/explainer/models'])
 })
 
 test('the config route answers with the public configuration', async () => {
@@ -83,13 +83,42 @@ test('the config route answers with the public configuration', async () => {
   const route = routes.get('/explainer/config')
   const req = fakeReq({}, 'GET')
   const res = fakeRes()
-  route.handler(req, res)
-  await new Promise(resolve => setImmediate(resolve))
+  await route.handler(req, res)
   assert.equal(res.status, 200)
   const payload = JSON.parse(res.body())
   assert.equal(payload.ok, true)
   assert.equal(payload.config.maxTokens, 300)
-  assert.equal(payload.version, 1)
+  assert.equal(payload.version, 2)
+  // Without a pinned default the window follows the main chat; the catalog is
+  // still advertised so a deployment can pick any of these models.
+  assert.equal(payload.config.defaultModel, null)
+  assert.deepEqual(payload.config.modelGroups, [{ id: 'p', name: 'p', models: [{ id: 'm', name: 'm' }] }])
+})
+
+test('the config route reports a pinned default model as the window default', async () => {
+  const { routes } = harness(undefined, { defaultModel: 'p/m' })
+  const res = fakeRes()
+  await routes.get('/explainer/config').handler(fakeReq({}, 'GET'), res)
+  const payload = JSON.parse(res.body())
+  assert.deepEqual(payload.config.defaultModel, { provider: 'p', model: 'm' })
+})
+
+test('the models route lists the main chat catalog and the default route', async () => {
+  const { routes } = harness(undefined, { defaultModel: 'p/m' })
+  const res = fakeRes()
+  await routes.get('/explainer/models').handler(fakeReq({}, 'GET'), res)
+  assert.equal(res.status, 200)
+  const payload = JSON.parse(res.body())
+  assert.equal(payload.ok, true)
+  assert.deepEqual(payload.defaultModel, { provider: 'p', model: 'm' })
+  assert.deepEqual(payload.groups, [{ id: 'p', name: 'p', models: [{ id: 'm', name: 'm' }] }])
+})
+
+test('the models route fails closed through the connection fence', async () => {
+  const { routes } = harness(() => ({ code: 'forbidden' }))
+  const res = fakeRes()
+  await routes.get('/explainer/models').handler(fakeReq({}, 'GET'), res)
+  assert.equal(res.status, 403)
 })
 
 test('the ask route streams meta, deltas and a done frame', async () => {

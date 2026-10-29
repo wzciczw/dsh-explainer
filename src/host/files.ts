@@ -233,10 +233,37 @@ export async function readFileContext(
     const buffer = await readFile(actual)
     // A NUL byte means the preview is showing a binary; never feed it to the model.
     if (buffer.includes(0)) return ''
-    const text = buffer.toString('utf8')
+    // An HTML report is mostly markup, so a character budget alone would
+    // spend the context on tags and answer nothing. Extract the readable
+    // text first, then apply the same cap.
+    const head = buffer.subarray(0, 512).toString('utf8')
+    const isHtml = /^\s*<(!doctype|html|head|body|div|section|article|main|table|h[1-6]|p|ul|ol|pre)\b/i.test(head)
+    const text = isHtml ? htmlToText(buffer.toString('utf8')) : buffer.toString('utf8')
     const clipped = text.length > maxChars ? `${text.slice(0, maxChars)}\n…（已截断）` : text
     return `路径: ${actual}\n修改时间: ${stamp(info.mtimeMs)}\n大小: ${bytes(info.size)}\n内容:\n<<<\n${clipped}\n>>>`
   } catch {
     return ''
   }
+}
+
+/**
+ * Visible text of an HTML document: scripts, styles and tags removed.
+ *
+ * This prepares model context only. It never renders, never executes and
+ * never returns markup, so the model reads the words rather than the tags.
+ */
+export function htmlToText(html: string): string {
+  return html.replace(/<(script|style|template|noscript)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<\/(p|div|section|article|main|header|footer|li|tr|h[1-6]|blockquote|pre)>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&amp;/gi, '&')
+    .replace(/[ \t\u00a0]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }

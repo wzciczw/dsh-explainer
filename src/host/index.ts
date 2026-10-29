@@ -2,7 +2,8 @@ import type { HostPluginContext, LlmServiceLike } from './types.js'
 import { normalizeConfig } from './config.js'
 import { AskEngine } from './engine.js'
 import { ThreadStore } from './threads.js'
-import { askHandler, configHandler, type RouteDeps } from './routes.js'
+import { askHandler, configHandler, modelsHandler, type RouteDeps } from './routes.js'
+import { catalogWithin, listModelCatalog, resolveDefaultRoute } from './models.js'
 
 /** Loader row name; must equal the installed package name. */
 export const name = 'explainer'
@@ -43,13 +44,27 @@ export function apply(ctx: HostPluginContext, rawConfig: unknown): void {
 
   const threads = new ThreadStore(config.maxThreads, config.threadTtlMs)
   const engine = new AskEngine(ctx, llm, threads, config)
-  const deps: RouteDeps = { config, engine, threads, connection }
+  const deps: RouteDeps = {
+    config,
+    engine,
+    threads,
+    connection,
+    // Resolved per request, never frozen: the model catalog and the deployment
+    // default can change while the plugin is running.
+    catalog: () => catalogWithin(listModelCatalog(ctx, llm)),
+  }
 
   ctx.effect?.(() => webServer.register({
     kind: 'exact',
     path: '/explainer/config',
     handler: configHandler(deps) as unknown as (req: unknown, res: unknown) => unknown,
   }), 'explainer: config route')
+
+  ctx.effect?.(() => webServer.register({
+    kind: 'exact',
+    path: '/explainer/models',
+    handler: modelsHandler(deps) as unknown as (req: unknown, res: unknown) => unknown,
+  }), 'explainer: models route')
 
   ctx.effect?.(() => webServer.register({
     kind: 'exact',
@@ -68,7 +83,10 @@ export function apply(ctx: HostPluginContext, rawConfig: unknown): void {
   timer.unref?.()
   ctx.effect?.(() => () => clearInterval(timer), 'explainer: thread prune timer')
 
+  const pinned = config.defaultModel === undefined
+    ? 'session/default'
+    : `${config.defaultModel.provider}/${config.defaultModel.model}`
   ctx.logger?.info?.(
-    `explainer: ready (model=${config.provider ?? 'session/default'}, inheritContext=${config.inheritContext}, maxTokens=${config.maxTokens})`,
+    `explainer: ready (model=${pinned}, inheritContext=${config.inheritContext}, maxTokens=${config.maxTokens})`,
   )
 }

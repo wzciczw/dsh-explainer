@@ -31,6 +31,23 @@ export interface AssistantInput {
 
 export type ThreadMessage = UserInput | AssistantInput
 
+/** One selectable `provider/model` route. */
+export interface ModelRoute {
+  provider: string
+  model: string
+}
+
+/** The model catalog as the browser needs to render it: never includes keys. */
+export interface ModelCatalog {
+  /** Global deployment default (`agentDefaultModel`), when the service answers. */
+  defaultRoute: ModelRoute | null
+  groups: Array<{
+    id: string
+    name: string
+    models: Array<{ id: string; name: string }>
+  }>
+}
+
 /** One session event, narrowed to the fields we read. */
 export interface SessionEventLike {
   type?: string
@@ -150,10 +167,14 @@ export interface ExplainerConfig {
   showMeta: boolean
   maxConcurrent: number
   rightClick: boolean
+  /** Start the default answer as soon as a recognized selection opens. */
+  autoAnswer: boolean
   fileAccess: boolean
   fileContextMaxChars: number
   fileMaxFiles: number
   fileMaxChars: number
   fileExcerptChars: number
+  /** Route the window uses instead of following the main chat's model. */
+  defaultModel?: ModelRoute
   presets: string[]
 }

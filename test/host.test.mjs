@@ -8,6 +8,7 @@ import { composeOpening, composeFollowUp } from '../lib/host/prompt.js'
 import { readTranscript, readSessionModel } from '../lib/host/transcript.js'
 import { ThreadStore } from '../lib/host/threads.js'
 import { AskEngine } from '../lib/host/engine.js'
+import { listModelCatalog, resolveDefaultRoute } from '../lib/host/models.js'
 
 const EVENTS = [
   { type: 'request/header', data: { header: { config: { provider: 'session-provider', model: 'session-model' } } } },
@@ -131,8 +132,9 @@ test('one quick-ask thread inherits context once and never writes the session', 
   assert.deepEqual(deltas, ['你好', '，世界'])
   assert.equal(outcome.effort, 'off')
   assert.equal(outcome.chars, 5)
-  // One read for the transcript, one for the workspace root used by file grounding.
-  assert.equal(reads.count, 2)
+  // One read for the transcript, one for the workspace root used by file
+  // grounding, one for the session's recorded route on the opening turn.
+  assert.equal(reads.count, 3)
   const first = calls[0]
   assert.match(first.messages[0].content[0].text, /只读快照/)
   assert.match(first.system, /快问/)
@@ -147,7 +149,7 @@ test('one quick-ask thread inherits context once and never writes the session', 
     () => {},
   )
   // The follow-up re-reads only the session route; the transcript is not rebuilt.
-  assert.equal(reads.count, 3)
+  assert.equal(reads.count, 4)
   const second = calls[1]
   assert.equal(second.messages.length, 3)
   assert.equal(second.messages[1].role, 'assistant')
@@ -171,7 +173,7 @@ test('the request route wins, then the main session route, then the plugin confi
   assert.equal(calls[0].provider, 'request-provider')
   assert.equal(calls[0].model, 'request-model')
 
-  // 2. Without one, the main session's last request route beats the plugin config.
+  // 2. Without one, the main session's last request route wins.
   await engine.run(
     { threadId: 'route-2', mode: 'quick', question: 'hi', sessionId: 's1' },
     new AbortController().signal,
@@ -190,6 +192,90 @@ test('the request route wins, then the main session route, then the plugin confi
   assert.equal(calls[2].model, 'config-model')
 })
 
+test('defaultModel pins the window without overriding the main session or an explicit ask', async () => {
+  const { ctx } = fakeCtx()
+  const { llm, calls } = fakeLlm()
+  const config = normalizeConfig({ defaultModel: 'newapi/gemini-3.8-flash' })
+  assert.deepEqual(config.defaultModel, { provider: 'newapi', model: 'gemini-3.8-flash' })
+  const engine = new AskEngine(ctx, llm, new ThreadStore(10, 60_000), config)
+
+  // 1. The main session's own route still wins: the pin is a default, not a lock.
+  await engine.run(
+    { threadId: 'pin-1', mode: 'quick', question: 'hi', sessionId: 's1' },
+    new AbortController().signal,
+    () => {},
+  )
+  assert.equal(calls[0].provider, 'session-provider')
+
+  // 2. Without a session route the pin applies.
+  await engine.run(
+    { threadId: 'pin-2', mode: 'quick', question: 'hi' },
+    new AbortController().signal,
+    () => {},
+  )
+  assert.equal(calls[1].provider, 'newapi')
+  assert.equal(calls[1].model, 'gemini-3.8-flash')
+
+  // 3. An explicit request route still wins over the pin.
+  await engine.run(
+    { threadId: 'pin-3', mode: 'quick', question: 'hi', provider: 'main-user-pick', model: 'kimi-k3' },
+    new AbortController().signal,
+    () => {},
+  )
+  assert.equal(calls[2].provider, 'main-user-pick')
+  assert.equal(calls[2].model, 'kimi-k3')
+  assert.deepEqual(publicConfig(config).defaultModel, { provider: 'newapi', model: 'gemini-3.8-flash' })
+})
+
+test('defaultModel accepts the object form and needs a provider for a bare model', () => {
+  assert.deepEqual(normalizeConfig({ defaultModel: { provider: 'p', model: 'm' } }).defaultModel, { provider: 'p', model: 'm' })
+  assert.equal(normalizeConfig({ defaultModel: 'gemini-3.8-flash' }).defaultModel, undefined)
+  assert.deepEqual(
+    normalizeConfig({ provider: 'newapi', defaultModel: 'gemini-3.8-flash' }).defaultModel,
+    { provider: 'newapi', model: 'gemini-3.8-flash' },
+  )
+  // Model ids may contain slashes; only the first slash splits.
+  assert.deepEqual(
+    normalizeConfig({ defaultModel: 'newapi/stepfun/step-5-preview' }).defaultModel,
+    { provider: 'newapi', model: 'stepfun/step-5-preview' },
+  )
+  assert.equal(normalizeConfig({ defaultModel: 42 }).defaultModel, undefined)
+})
+
+
+test('listModelCatalog groups the models the main chat offers, bounded per provider', async () => {
+  const ctx = {
+    get: key => (key === 'agentDefaultModel'
+      ? { currentSelection: () => ({ provider: 'newapi', model: 'deepseek-flash' }) }
+      : undefined),
+  }
+  const llm = {
+    prepareCall: async () => { throw new Error('unused') },
+    listProviders: () => [
+      { id: 'newapi', name: '公司' },
+      { id: 'newapi-gemini' },
+      { id: 'broken' },
+    ],
+    listModels: async (provider) => {
+      if (provider === 'broken') throw new Error('boom')
+      if (provider === 'newapi-gemini') return [{ id: 'gemini-3.8-flash' }, { id: '' }, null]
+      return [{ id: 'deepseek-flash', name: 'deepseek-flash' }, { id: 'kimi-k3' }]
+    },
+  }
+  const catalog = await listModelCatalog(ctx, llm)
+  assert.deepEqual(catalog.defaultRoute, { provider: 'newapi', model: 'deepseek-flash' })
+  assert.deepEqual(catalog.groups, [
+    { id: 'newapi', name: '公司', models: [{ id: 'deepseek-flash', name: 'deepseek-flash' }, { id: 'kimi-k3', name: 'kimi-k3' }] },
+    { id: 'newapi-gemini', name: 'newapi-gemini', models: [{ id: 'gemini-3.8-flash', name: 'gemini-3.8-flash' }] },
+  ], 'a throwing provider is dropped instead of failing the whole catalog')
+
+  // The deployment default beats "first advertised" when the pin is absent.
+  const route = await resolveDefaultRoute({ ctx, llm, config: normalizeConfig({}) })
+  assert.deepEqual(route, { provider: 'newapi', model: 'deepseek-flash' })
+  // A pin still wins over everything else.
+  const pinned = await resolveDefaultRoute({ ctx, llm, config: normalizeConfig({ defaultModel: 'newapi-gemini/gemini-3.8-flash' }) })
+  assert.deepEqual(pinned, { provider: 'newapi-gemini', model: 'gemini-3.8-flash' })
+})
 
 test('file grounding reads the workspace read-only and refuses paths outside it', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'explainer-test-'))

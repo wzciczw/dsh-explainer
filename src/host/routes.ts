@@ -1,17 +1,23 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import type { AskRequest, ConnectionLike, ExplainerConfig } from './types.js'
+import type { AskRequest, ConnectionLike, ExplainerConfig, ModelCatalog } from './types.js'
 import { publicConfig } from './config.js'
 import { AskEngine, AskError } from './engine.js'
 import type { ThreadStore } from './threads.js'
 
 const BODY_LIMIT = 128 * 1024
 
-/** Dependencies shared by the three routes. */
+/** Dependencies shared by the routes. */
 export interface RouteDeps {
   config: ExplainerConfig
   engine: AskEngine
   threads: ThreadStore
   connection: ConnectionLike | undefined
+  /**
+   * The selectable models the main chat offers, plus the route the window uses
+   * by default. Optional so a host without an `llm` catalog still serves the
+   * ask route.
+   */
+  catalog?: () => Promise<ModelCatalog>
 }
 
 class HttpError extends Error {
@@ -116,9 +122,15 @@ function sse(res: ServerResponse, event: string, data: unknown): void {
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
 }
 
-/** `GET /explainer/config` — the browser's view of the plugin row. */
+/**
+ * `GET /explainer/config` — the browser's view of the plugin row.
+ *
+ * The model catalog is merged in when available: `defaultModel` is the route
+ * this window uses by default, and `groups` is what the main chat can select
+ * from, so a deployment can point the window at any of those models.
+ */
 export function configHandler(deps: RouteDeps) {
-  return (req: IncomingMessage, res: ServerResponse): void => {
+  return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     if (!trusted(deps, req)) {
       sendJson(res, 403, { ok: false, error: { code: 'forbidden', message: 'forbidden' } })
       return
@@ -127,12 +139,61 @@ export function configHandler(deps: RouteDeps) {
       sendJson(res, 405, { ok: false, error: { code: 'method', message: 'method not allowed' } })
       return
     }
+    const config = publicConfig(deps.config)
+    let catalog: ModelCatalog = { defaultRoute: null, groups: [] }
+    if (deps.catalog !== undefined) {
+      try {
+        catalog = await deps.catalog()
+      } catch {
+        // A failing catalog must not break the card: the window then simply
+        // does not label a default model.
+      }
+    }
     sendJson(res, 200, {
       ok: true,
-      config: publicConfig(deps.config),
+      config: {
+        ...config,
+        defaultModel: catalog.defaultRoute ?? deps.config.defaultModel ?? null,
+        pinnedModel: deps.config.defaultModel ?? null,
+        modelGroups: catalog.groups,
+      },
       threads: deps.threads.size(),
-      version: 1,
+      version: 2,
     })
+  }
+}
+
+/** `GET /explainer/models` — the selectable models and the window's default route. */
+export function modelsHandler(deps: RouteDeps) {
+  return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+    if (!trusted(deps, req)) {
+      sendJson(res, 403, { ok: false, error: { code: 'forbidden', message: 'forbidden' } })
+      return
+    }
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      sendJson(res, 405, { ok: false, error: { code: 'method', message: 'method not allowed' } })
+      return
+    }
+    if (deps.catalog === undefined) {
+      sendJson(res, 503, { ok: false, error: { code: 'no-catalog', message: 'no model catalog is available' } })
+      return
+    }
+    try {
+      const catalog = await deps.catalog()
+      sendJson(res, 200, {
+        ok: true,
+        defaultModel: catalog.defaultRoute ?? deps.config.defaultModel ?? null,
+        groups: catalog.groups,
+      })
+    } catch (error) {
+      sendJson(res, 503, {
+        ok: false,
+        error: {
+          code: 'no-catalog',
+          message: error instanceof Error ? error.message : 'the model catalog is unavailable',
+        },
+      })
+    }
   }
 }
 

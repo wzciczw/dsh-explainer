@@ -10,6 +10,7 @@ import type {
 } from './types.js'
 import { composeFollowUp, composeOpening, SYSTEM_PROMPT } from './prompt.js'
 import { readSessionCwd, readSessionModel, readTranscript } from './transcript.js'
+import { firstAdvertised } from './models.js'
 import { readFileContext, readFileGrounding } from './files.js'
 import type { Thread, ThreadStore } from './threads.js'
 
@@ -233,10 +234,11 @@ export class AskEngine {
   /**
    * Resolve the exact route for this turn.
    *
-   * Precedence: explicit request → plugin config → the thread's own previous
-   * route → the main session's last request header → the deployment default →
-   * the first advertised provider/model. The last two exist so a fresh profile
-   * with one configured provider still works without extra setup.
+   * Precedence: explicit request → the main session's last request header →
+   * a continuing thread's own route → the plugin row's `defaultModel` →
+   * legacy `provider`+`model` → the deployment default → the first advertised
+   * provider/model. The last two exist so a fresh profile with one configured
+   * provider still works without extra setup.
    */
   private async resolveTarget(
     request: AskRequest,
@@ -245,19 +247,26 @@ export class AskEngine {
     created: boolean,
   ): Promise<{ provider: string; model: string }> {
     // The product rule: the quick-ask window uses the main window's model.
-    // The browser sends the durable selection explicitly; these fallbacks keep
-    // a sessionless or older client on the same route instead of a pinned one.
+    // The browser sends that model explicitly; these fallbacks keep a
+    // sessionless or older client on the same route instead of a pinned one.
     if (typeof request.provider === 'string' && request.provider !== '' && typeof request.model === 'string' && request.model !== '') {
       return { provider: request.provider, model: request.model }
     }
-    // A brand-new thread already captured the route from the same read-only
-    // snapshot, so do not scan the log again on the opening turn.
-    if (created && thread.model !== undefined) return thread.model
     const sessionModel = request.sessionId === undefined
       ? undefined
       : readSessionModel(sessions, request.sessionId)
     if (sessionModel !== undefined) return sessionModel
-    if (thread.model !== undefined) return thread.model
+    // A brand-new thread already captured the route from the same read-only
+    // snapshot, so do not scan the log again on the opening turn.
+    if (created) {
+      if (thread.model !== undefined) return thread.model
+    } else if (thread.model !== undefined) {
+      return thread.model
+    }
+    // The plugin row may pin the window to one of the models the main chat also
+    // offers. The session's own recorded route above still wins, because that
+    // route is what the user is looking at in the main window.
+    if (this.config.defaultModel !== undefined) return this.config.defaultModel
     if (this.config.provider !== undefined && this.config.model !== undefined) {
       return { provider: this.config.provider, model: this.config.model }
     }
@@ -271,13 +280,9 @@ export class AskEngine {
       // An absent or failing default-model service is not fatal: fall through.
     }
 
-    const providers = this.llm.listProviders?.() ?? []
-    const first = providers[0]
-    if (first === undefined) throw new AskError('no-model', 'no LLM provider is registered', 503)
-    const models = (await this.llm.listModels?.(first.id)) ?? []
-    const model = models[0]
-    if (model === undefined) throw new AskError('no-model', `provider "${first.id}" advertises no model`, 503)
-    return { provider: first.id, model: model.id }
+    const advertised = await firstAdvertised(this.llm)
+    if (advertised === undefined) throw new AskError('no-model', 'no LLM provider advertises a model', 503)
+    return advertised
   }
 
   /** Lowest supported reasoning effort, unless the config pins one. */

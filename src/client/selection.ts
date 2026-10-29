@@ -87,6 +87,11 @@ function editorPathOf(node: Node | null): string | undefined {
   return undefined
 }
 
+/** Resolve only a known preview/editor surface; never accept a path from iframe content. */
+export function filePathOf(node: Node | null): string | undefined {
+  return documentPathOf(node) ?? editorPathOf(node)
+}
+
 /** Normalize a DOM selection into plain text while keeping paragraph breaks. */
 function selectionText(selection: Selection): string {
   return selection
@@ -113,8 +118,8 @@ function selectionRect(range: Range): RectLike | null {
  * document preview. The preview needs its file marker (installed by this
  * plugin's toolbar contribution); without one the selection is ignored.
  */
-export function readSelection(): DetectedSelection | null {
-  const selection = window.getSelection()
+export function readSelection(view: Window = window, previewPath?: string): DetectedSelection | null {
+  const selection = view.getSelection()
   if (selection === null || selection.isCollapsed || selection.rangeCount === 0) return null
   const range = selection.getRangeAt(0)
   if (range.collapsed) return null
@@ -126,13 +131,62 @@ export function readSelection(): DetectedSelection | null {
   const capped = text.length > 20_000 ? text.slice(0, 20_000) : text
 
   const common = range.commonAncestorContainer
-  const filePath = documentPathOf(common) ?? editorPathOf(common)
+  if (previewPath !== undefined) {
+    // Embedded preview inputs are UI, not the file being explained.
+    if (isEditable(range.startContainer) || isEditable(range.endContainer)) return null
+    return { kind: 'file', text: capped, rect, filePath: previewPath }
+  }
+  const filePath = filePathOf(common)
+  if (filePath !== undefined && (filePathOf(range.startContainer) !== filePath
+    || filePathOf(range.endContainer) !== filePath)) return null
   // A file selection may sit in a CodeMirror contenteditable; that is the
   // document being read, not a draft composer, so it is allowed here.
   if (filePath !== undefined) return { kind: 'file', text: capped, rect, filePath }
   if (isEditable(common)) return null
   if (inConversation(common)) return { kind: 'chat', text: capped, rect }
   return null
+}
+
+/** The same shapes the host uses to pick the default answer. */
+export type SelectionShape = 'english-prose' | 'term' | 'question' | 'other'
+
+const WORD = /[A-Za-z][A-Za-z'\u2019-]*/g
+const CJK = /[\u3400-\u9fff\u3040-\u30ff]/g
+const CODE = /[{}<>\x60=]|=>|\bfunction\b|\bconst\b|\bimport\b|\bdef\b|\bclass\b|\breturn\b/
+const FINITE = /\b(is|are|was|were|be|been|has|have|had|does|do|did|can|could|will|would|shall|should|may|might|must|means|refers|describes|explains|allows|requires|contains|includes|supports|provides|creates|makes|uses|happens|works|becomes|seems|appears|shows|needs|returns|calls|says|tells|thinks|knows|sees|comes|goes|gives|takes|finds|keeps|holds|carries|brings|adds|removes|reads|writes|loads|saves|opens|closes|starts|stops|sends|receives|waits|fails|succeeds|exists)\b/i
+const FILLER_START = /^(?:the\s+)?(?:concept|notion|idea|term|definition|meaning)\s+of\s+|^what\s+(?:is|are)\s+|^(?:explain|define)\s+|^(?:什么是|所谓|解释一下|解释|这个词|这个概念|术语)\s*/i
+const FILLER_END = /\s*(?:的概念|这个概念|这个术语|术语|是什么意思|指的是什么|指什么|是什么|的定义)\s*[?？!！]?\s*$/
+
+/**
+ * Classify a selection exactly like the host does, so the card can promise
+ * the same default and start it without a second round trip.
+ * @param text - the selected text.
+ * @returns English prose, a noun-phrase term, a question, or anything else.
+ */
+export function selectionShape(input: string): SelectionShape {
+  const original = input.trim()
+  if (original === '') return 'other'
+  if (CODE.test(original)) return 'other'
+  let text = original.replace(FILLER_START, '').replace(FILLER_END, '').trim()
+  text = text.replace(/^[「“\x22'(\[]+|[」”\x22')\]]+$/g, '').trim()
+  if (text === '') return 'other'
+  const latin = text.match(WORD) ?? []
+  const cjk = text.match(CJK) ?? []
+  if (latin.length === 0) return 'other'
+  if (cjk.length >= latin.join('').length / 2) return 'other'
+  if (/[?？]\s*$/.test(text)) return 'question'
+  const words = latin.length
+  const sentences = (text.match(/[.!?](?=\s+[A-Z0-9])/g) ?? []).length
+  if (words <= 2) return 'term'
+  if (sentences >= 1) return 'english-prose'
+  if (words >= 8) return 'english-prose'
+  if (FINITE.test(text)) return 'english-prose'
+  return 'term'
+}
+
+/** Whether a selection reads as English prose. */
+export function isEnglishProse(text: string): boolean {
+  return selectionShape(text) === 'english-prose'
 }
 
 /** Where the quick-ask window opens when there is no selection. */

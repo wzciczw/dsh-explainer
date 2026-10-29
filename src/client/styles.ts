@@ -115,6 +115,9 @@ button.dx-badge{cursor:pointer}
 .dx-launcher:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.07));color:var(--dsw-alias-label-primary,#fff)}
 .dx-launcher .dx-spark{color:var(--dx-accent)}
 
+.dx-html-adapter,.dx-html-preview{display:flex;flex-direction:column;flex:1;min-height:0;height:100%}.dx-html-preview iframe{flex:1;width:100%;min-height:300px;border:0;background:white}.dx-html-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 10px;font-size:11px;border-bottom:1px solid var(--dsw-alias-border-l2,#444)}.dx-html-bar button,.dx-html-start button{cursor:pointer;padding:5px 10px}.dx-html-start{padding:14px;font-size:13px}
+.dx-html-frame{display:block;width:100%;height:100%;min-height:240px;border:0;background:#fff;flex:1 1 auto;align-self:stretch}
+.dx-html-error{padding:12px;font-size:12px;color:var(--dsw-alias-state-error-primary,#e5484d)}
 @keyframes dx-rise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 @keyframes dx-pop{from{opacity:0;transform:translateY(5px) scale(.99)}to{opacity:1;transform:none}}
 @keyframes dx-blink{50%{opacity:0}}

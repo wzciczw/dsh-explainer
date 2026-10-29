@@ -1,7 +1,9 @@
+import { selectionShape } from './selection'
 import type {
   CardState,
   ComposerBridge,
   Meta,
+  ModelRoute,
   PublicConfig,
   RectLike,
   Snapshot,
@@ -20,9 +22,20 @@ const DEFAULTS: PublicConfig = {
   inheritContext: true,
   showMeta: true,
   rightClick: true,
+  autoAnswer: true,
   presets: ['explain', 'translate', 'summary', 'example'],
   provider: null,
   model: null,
+  defaultModel: null,
+  modelGroups: [],
+}
+
+/** True when `route` is one of the models `config` says the main chat offers. */
+function listedRoute(config: PublicConfig, route: ModelRoute): boolean {
+  const groups = config.modelGroups ?? []
+  if (groups.length === 0) return true
+  return groups.some(group => group.id === route.provider
+    && group.models.some(model => model.id === route.model))
 }
 
 /** A typed transport refusal worth showing verbatim. */
@@ -48,7 +61,7 @@ function turn(role: 'user' | 'assistant', text: string, extra?: Partial<Turn>): 
 /** The single browser-side state machine for the pill and the window. */
 export class ExplainerStore {
   private listeners = new Set<() => void>()
-  private snap: Snapshot = { hint: null, card: null, config: null, bridge: null, sessionId: null, sessionModel: null, notice: null, ready: false }
+  private snap: Snapshot = { hint: null, card: null, config: null, bridge: null, sessionId: null, sessionModel: null, defaultRoute: null, notice: null, ready: false }
   private noticeTimer = 0
   private noticeId = 0
   private abort: AbortController | null = null
@@ -59,6 +72,7 @@ export class ExplainerStore {
   private generation = 0
   private activeGeneration = 0
   private configTask: Promise<void> | null = null
+  private autoTimer = 0
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener)
@@ -81,6 +95,14 @@ export class ExplainerStore {
     if (next !== card) this.emit({ card: next })
   }
 
+  /** Cancel a pending auto answer; the user is steering the card. */
+  private clearAuto(): void {
+    if (this.autoTimer !== 0) {
+      window.clearTimeout(this.autoTimer)
+      this.autoTimer = 0
+    }
+  }
+
   /* ------------------------------------------------------------------ hint */
 
   /** The host row can be disabled from the profile; the UI then stays inert. */
@@ -88,7 +110,7 @@ export class ExplainerStore {
     return this.snap.ready && this.snap.config?.enabled === false
   }
 
-  showHint(text: string, rect: RectLike, filePath?: string): void {
+  showHint(text: string, rect: RectLike, filePath?: string, sessionId?: string): void {
     if (this.disabled() || this.snap.card !== null) return
     const current = this.snap.hint
     if (
@@ -97,8 +119,9 @@ export class ExplainerStore {
       && Math.abs(current.rect.left - rect.left) < 2
       && Math.abs(current.rect.top - rect.top) < 2
       && current.filePath === filePath
+      && current.sessionId === sessionId
     ) return
-    this.emit({ hint: { text, rect, ...(filePath === undefined ? {} : { filePath }) } })
+    this.emit({ hint: { text, rect, sessionId, ...(filePath === undefined ? {} : { filePath }) } })
   }
 
   hideHint(): void {
@@ -131,19 +154,35 @@ export class ExplainerStore {
     }
   }
 
-  openSelection(anchor: RectLike, text: string, filePath?: string): void {
+  openSelection(anchor: RectLike, text: string, filePath?: string, sessionId?: string): void {
     if (this.disabled()) return
+    this.clearAuto()
     const config = this.snap.config ?? DEFAULTS
     const quote = text.slice(0, config.selectionMaxChars)
-    this.emit({
-      hint: null,
-      card: this.freshCard('selection', anchor, quote, config.inheritContext, filePath),
-    })
+    const card = { ...this.freshCard('selection', anchor, quote, config.inheritContext, filePath), sessionId }
+    this.emit({ hint: null, card })
     this.ensureConfig()
+    // A recognized selection answers itself, as the card's placeholder says.
+    // Typing (or closing) before the timer fires cancels it and keeps the
+    // user's own question as the first turn.
+    const shape = selectionShape(quote)
+    if ((this.snap.config?.autoAnswer ?? config.autoAnswer) && shape !== 'other' && quote.trim() !== '') {
+      const threadId = card.threadId
+      this.autoTimer = window.setTimeout(() => {
+        this.autoTimer = 0
+        // The config may have answered after the card opened; honour a later
+        // autoAnswer: false instead of sending anyway.
+        if (this.snap.config?.autoAnswer === false) return
+        const current = this.snap.card
+        if (current === null || current.threadId !== threadId || current.phase !== 'input' || current.draft.trim() !== '') return
+        void this.send()
+      }, 400)
+    }
   }
 
   openQuick(anchor: RectLike): void {
     if (this.disabled()) return
+    this.clearAuto()
     this.emit({
       hint: null,
       card: this.freshCard('quick', anchor, '', false),
@@ -152,6 +191,7 @@ export class ExplainerStore {
   }
 
   close(): void {
+    this.clearAuto()
     this.stop(true)
     this.emit({ card: null, hint: null })
   }
@@ -159,6 +199,7 @@ export class ExplainerStore {
   /* --------------------------------------------------------------- actions */
 
   setDraft(draft: string): void {
+    if (draft.trim() !== '') this.clearAuto()
     this.patchCard(card => (card.draft === draft ? card : { ...card, draft }))
   }
 
@@ -172,6 +213,7 @@ export class ExplainerStore {
 
   newThread(): void {
     if (this.snap.card === null) return
+    this.clearAuto()
     this.stop(true)
     this.patchCard(card => ({
       ...card,
@@ -188,6 +230,7 @@ export class ExplainerStore {
   retry(): void {
     const card = this.snap.card
     if (card === null || card.phase === 'streaming') return
+    this.clearAuto()
     const question = card.lastQuestion
     this.stop(true)
     this.patchCard(current => ({
@@ -203,6 +246,7 @@ export class ExplainerStore {
   }
 
   async send(): Promise<void> {
+    this.clearAuto()
     const card = this.snap.card
     if (card === null || card.phase === 'streaming') return
     const config = this.snap.config ?? DEFAULTS
@@ -212,9 +256,11 @@ export class ExplainerStore {
     const question = draft
     const userText = draft === ''
       ? (card.mode === 'selection'
-          ? (card.filePath === undefined
-              ? '解释这段'
-              : (card.filePath.split(/[\\/]/).pop() ?? '这个文件'))
+          ? (card.filePath !== undefined
+              ? (card.filePath.split(/[\\/]/).pop() ?? '这个文件')
+              : (selectionShape(card.quote) === 'english-prose'
+                  ? '翻译这段'
+                  : (selectionShape(card.quote) === 'question' ? '回答这段' : '解释这段')))
           : '')
       : draft
     if (userText === '') return
@@ -241,18 +287,22 @@ export class ExplainerStore {
     this.abort = controller
     this.abortReason = null
 
+    const preferred = this.preferredRoute()
     const body = {
       threadId: card.threadId,
       mode: card.mode,
       question,
       ...(card.mode === 'selection' && first ? { selection: card.quote } : {}),
       ...(first && card.filePath !== undefined ? { filePath: card.filePath } : {}),
-      ...(this.snap.sessionModel === null
-        ? {}
-        : { provider: this.snap.sessionModel.provider, model: this.snap.sessionModel.model }),
+      // One explicit route per request: the window's default model. That is
+      // the main chat's model unless the plugin row pinned another selectable
+      // one. A rendered catalog that does not list the pinned route means the
+      // model is gone, so fall back to the main chat instead of failing.
+      ...(preferred === null ? {} : { provider: preferred.provider, model: preferred.model }),
       ...(this.snap.bridge?.sessionId === undefined
         ? (this.snap.sessionId === null ? {} : { sessionId: this.snap.sessionId })
         : { sessionId: this.snap.bridge.sessionId }),
+      ...(card.sessionId === undefined ? {} : { sessionId: card.sessionId }),
       inheritContext: card.inheritContext,
     }
 
@@ -311,6 +361,41 @@ export class ExplainerStore {
     // Invalidate the in-flight send: its late deltas must not land in a
     // thread the user already replaced or closed.
     this.generation += 1
+  }
+
+  /**
+   * The route every ask should use, in display order of confidence:
+   *   1. the pinned `defaultModel`, when the main chat still offers it;
+   *   2. the main window's live selection (the product rule);
+   *   3. the host-resolved default route (session header → deployment default).
+   */
+  private preferredRoute(): ModelRoute | null {
+    const config = this.snap.config
+    const pinned = config?.defaultModel ?? null
+    if (pinned !== null && (config === null || listedRoute(config, pinned))) return pinned
+    if (this.snap.sessionModel !== null) return this.snap.sessionModel
+    return this.snap.defaultRoute
+  }
+
+  /**
+   * The route the window actually answers with, mirroring the host's order:
+   * the pinned model while the catalog still lists it (it is the window's
+   * default), otherwise whatever the main chat is on. An explicit per-request
+   * route can still differ — the window is a default, not a lock.
+   */
+  effectiveRoute(): ModelRoute | null {
+    const config = this.snap.config
+    const pinned = config?.defaultModel ?? null
+    if (pinned !== null && (config === null || listedRoute(config, pinned))) return pinned
+    return this.snap.sessionModel ?? this.snap.defaultRoute ?? pinned
+  }
+
+  /** True when the window is pinned to a model instead of following the main chat. */
+  isPinnedModel(): boolean {
+    const config = this.snap.config
+    if ((config?.pinnedModel ?? null) !== null) return true
+    const pinned = config?.defaultModel ?? null
+    return pinned !== null && (config === null || listedRoute(config, pinned))
   }
 
   /* -------------------------------------------------------------- transport */
@@ -442,7 +527,7 @@ export class ExplainerStore {
         const data = await response.json() as { config?: PublicConfig }
         const config = data?.config
         if (config !== undefined && typeof config === 'object') {
-          this.emit({ config, ready: true })
+          this.emit({ config, defaultRoute: this.routeOf(config.defaultModel), ready: true })
           return
         }
         throw new Error('malformed config')
@@ -451,6 +536,13 @@ export class ExplainerStore {
       }
     })()
     return this.configTask
+  }
+
+  private routeOf(value: { provider?: unknown; model?: unknown } | null | undefined): ModelRoute | null {
+    if (value === null || value === undefined) return null
+    if (typeof value.provider !== 'string' || value.provider === '') return null
+    if (typeof value.model !== 'string' || value.model === '') return null
+    return { provider: value.provider, model: value.model }
   }
 
   /* ------------------------------------------------------------------ bridge */

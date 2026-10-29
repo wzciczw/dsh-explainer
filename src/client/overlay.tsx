@@ -2,7 +2,8 @@ import * as React from 'react'
 import type { ExplainerStore } from './store'
 import type { CardState, Turn } from './types'
 import { Markdown } from './markdown'
-import { findComposerRect, readSelection } from './selection'
+import { findComposerRect, readSelection, selectionShape } from './selection'
+import { observePreviewFrames } from './preview-frames'
 import { useStore } from './use-store'
 
 export type Translate = (key: string) => string
@@ -97,7 +98,8 @@ export function Overlay(props: {
     const onDown = (): void => { pointerDown = true }
     const onUp = (): void => {
       pointerDown = false
-      window.setTimeout(compute, 16)
+      window.clearTimeout(timer)
+      timer = window.setTimeout(compute, 16)
     }
     const onSelectionChange = (): void => {
       if (pointerDown) return
@@ -117,6 +119,21 @@ export function Overlay(props: {
       document.removeEventListener('scroll', onScroll, true)
     }
   }, [store])
+
+  React.useEffect(() => observePreviewFrames(document, {
+    hint: found => {
+      if (found === null) store.hideHint()
+      else store.showHint(found.text, found.rect, found.filePath)
+    },
+    open: found => store.openSelection(found.rect, found.text, found.filePath),
+    pointerDown: () => store.close(),
+    enabled: () => store.getSnapshot().config?.enabled !== false,
+    rightClick: () => store.getSnapshot().config?.rightClick !== false,
+    escape: () => {
+      if (store.getSnapshot().card?.phase === 'streaming') store.stop()
+      else store.close()
+    },
+  }), [store])
 
   // Clicking anywhere outside the window closes it. The launcher and the
   // selection pill keep their own click behaviour.
@@ -194,7 +211,7 @@ export function Overlay(props: {
           }}
           title={t('rightClickHint')}
           onMouseDown={event => event.preventDefault()}
-          onClick={() => store.openSelection(hint.rect, hint.text, hint.filePath)}
+          onClick={() => store.openSelection(hint.rect, hint.text, hint.filePath, hint.sessionId)}
         >
           <span className="dx-spark">✦</span>
           {t('askSelection')}
@@ -207,7 +224,8 @@ export function Overlay(props: {
           t={t}
           showMeta={snapshot.config?.showMeta ?? true}
           hasBridge={snapshot.bridge !== null}
-          sessionModel={snapshot.sessionModel}
+          route={store.effectiveRoute()}
+          pinned={store.isPinnedModel()}
         />
       )}
       {notice !== null && <div className="dx-toast">{notice.text}</div>}
@@ -221,9 +239,12 @@ function Card(props: {
   t: Translate
   showMeta: boolean
   hasBridge: boolean
-  sessionModel: { provider: string; model: string } | null
+  /** The model this window will answer with, if it is known yet. */
+  route: { provider: string; model: string } | null
+  /** True when the plugin row pinned the model instead of following the chat. */
+  pinned: boolean
 }): React.ReactElement {
-  const { store, card, t, showMeta, hasBridge, sessionModel } = props
+  const { store, card, t, showMeta, hasBridge, route, pinned } = props
   const inputRef = React.useRef<HTMLTextAreaElement | null>(null)
   const bodyRef = React.useRef<HTMLDivElement | null>(null)
   const cardRef = React.useRef<HTMLDivElement | null>(null)
@@ -282,7 +303,13 @@ function Card(props: {
   const canSend = streaming || card.draft.trim() !== '' || (card.messages.length === 0 && card.mode === 'selection')
   const placeholder = card.messages.length === 0
     ? (card.mode === 'selection'
-        ? (card.filePath !== undefined && card.quote === '' ? t('placeholderFile') : t('placeholderSelection'))
+        ? (card.filePath !== undefined && card.quote === ''
+            ? t('placeholderFile')
+            : selectionShape(card.quote) === 'english-prose'
+              ? t('placeholderTranslate')
+              : selectionShape(card.quote) === 'term'
+                ? t('placeholderTerm')
+                : (selectionShape(card.quote) === 'question' ? t('placeholderQuestion') : t('placeholderSelection')))
         : t('placeholderQuick'))
     : t('placeholderFollow')
 
@@ -311,8 +338,11 @@ function Card(props: {
             {card.filePath.split(/[\\/]/).pop()}
           </span>
         )}
-        {sessionModel !== null && (
-          <span className="dx-badge dx-model" title={t('sameModel')}>{sessionModel.model}</span>
+        {route !== null && (
+          <span
+            className="dx-badge dx-model"
+            title={pinned ? t('pinnedModel') : t('sameModel')}
+          >{route.model}</span>
         )}
         <span className="dx-grow" />
         <button

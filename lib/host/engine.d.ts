@@ -46,10 +46,11 @@ export declare class AskEngine {
     /**
      * Resolve the exact route for this turn.
      *
-     * Precedence: explicit request → plugin config → the thread's own previous
-     * route → the main session's last request header → the deployment default →
-     * the first advertised provider/model. The last two exist so a fresh profile
-     * with one configured provider still works without extra setup.
+     * Precedence: explicit request → the main session's last request header →
+     * a continuing thread's own route → the plugin row's `defaultModel` →
+     * legacy `provider`+`model` → the deployment default → the first advertised
+     * provider/model. The last two exist so a fresh profile with one configured
+     * provider still works without extra setup.
      */
     private resolveTarget;
     /** Lowest supported reasoning effort, unless the config pins one. */

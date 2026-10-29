@@ -72,6 +72,154 @@ function sse(frames) {
   }), { status: 200, headers: { 'content-type': 'text/event-stream' } })
 }
 
+test('a pinned default model labels the window and leads every request', async () => {
+  const registrations = harness()
+  const overlay = registrations.find(item => item.options.id === 'explainer.window')
+  const composer = registrations.find(item => item.options.id === 'explainer.quick')
+  assert.ok(overlay !== undefined && composer !== undefined)
+
+  const requests = []
+  dom.window.fetch = async (url, init) => {
+    if (String(url).includes('/explainer/config')) {
+      return new Response(JSON.stringify({
+        ok: true,
+        config: {
+          enabled: true,
+          showMeta: true,
+          selectionMaxChars: 6000,
+          inheritContext: true,
+          presets: [],
+          rightClick: true,
+          defaultModel: { provider: 'newapi-gemini', model: 'gemini-3.8-flash' },
+          modelGroups: [
+            { id: 'newapi', name: '公司', models: [{ id: 'deepseek-flash', name: 'deepseek-flash' }] },
+            { id: 'newapi-gemini', name: '公司 Gemini', models: [{ id: 'gemini-3.8-flash', name: 'gemini-3.8-flash' }] },
+          ],
+        },
+      }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+    requests.push(JSON.parse(init.body))
+    return sse([
+      'event: meta\ndata: {"provider":"newapi-gemini","model":"gemini-3.8-flash","effort":"low"}\n\n',
+      'event: delta\ndata: {"text":"好的"}\n\n',
+      'event: done\ndata: {"ms":3}\n\n',
+    ])
+  }
+
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  const useSessions = (select) => select({ byId: { s1: { retainedBy: { mainView: 1 } } } })
+  const useInput = (select) => select({ draft: '' })
+
+  await act(async () => {
+    root.render(React.createElement(
+      React.Fragment,
+      null,
+      React.createElement(overlay.component, { useSessions }),
+      React.createElement(composer.component, {
+        sessionId: 's1',
+        inputActions: { captureInsertion: () => ({}), insertText: () => true, setDraft: () => {} },
+        useInput,
+        // The main chat is on another model; the pin must win for the window.
+        useProjection: (key, select) => select({ next: { provider: 'newapi', model: 'deepseek-flash' } }),
+      }),
+    ))
+    await new Promise(resolve => setTimeout(resolve, 10))
+  })
+
+  await act(async () => { container.querySelector('.dx-launcher').click() })
+  const card = container.querySelector('.dx-card')
+  assert.ok(card !== null)
+  const badge = card.querySelector('.dx-model')
+  assert.ok(badge !== null, 'the window labels its default model')
+  assert.equal(badge.textContent.trim(), 'gemini-3.8-flash')
+  assert.match(badge.getAttribute('title'), /pinnedModel/)
+
+  await act(async () => {
+    setTextarea(card.querySelector('.dx-input'), '这是什么')
+    card.querySelector('.dx-send').click()
+    await new Promise(resolve => setTimeout(resolve, 30))
+  })
+  assert.equal(requests.length, 1)
+  assert.equal(requests[0].provider, 'newapi-gemini')
+  assert.equal(requests[0].model, 'gemini-3.8-flash')
+
+  const meta = container.querySelector('.dx-meta')
+  assert.match(meta.textContent, /gemini-3\.8-flash/)
+
+  await act(async () => { root.unmount() })
+  container.remove()
+})
+
+test('a pinned model the catalog no longer lists falls back to the main chat model', async () => {
+  const registrations = harness()
+  const overlay = registrations.find(item => item.options.id === 'explainer.window')
+  const composer = registrations.find(item => item.options.id === 'explainer.quick')
+  assert.ok(overlay !== undefined && composer !== undefined)
+
+  const requests = []
+  dom.window.fetch = async (url, init) => {
+    if (String(url).includes('/explainer/config')) {
+      return new Response(JSON.stringify({
+        ok: true,
+        config: {
+          enabled: true,
+          showMeta: true,
+          selectionMaxChars: 6000,
+          inheritContext: true,
+          presets: [],
+          defaultModel: { provider: 'newapi-gemini', model: 'gemini-0-retired' },
+          modelGroups: [{ id: 'newapi', name: '公司', models: [{ id: 'deepseek-flash', name: 'deepseek-flash' }] }],
+        },
+      }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+    requests.push(JSON.parse(init.body))
+    return sse([
+      'event: meta\ndata: {"provider":"newapi","model":"deepseek-flash"}\n\n',
+      'event: delta\ndata: {"text":"好的"}\n\n',
+      'event: done\ndata: {"ms":3}\n\n',
+    ])
+  }
+
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  const useSessions = (select) => select({ byId: { s1: { retainedBy: { mainView: 1 } } } })
+  const useInput = (select) => select({ draft: '' })
+
+  await act(async () => {
+    root.render(React.createElement(
+      React.Fragment,
+      null,
+      React.createElement(overlay.component, { useSessions }),
+      React.createElement(composer.component, {
+        sessionId: 's1',
+        inputActions: { captureInsertion: () => ({}), insertText: () => true, setDraft: () => {} },
+        useInput,
+        useProjection: (key, select) => select({ next: { provider: 'newapi', model: 'deepseek-flash' } }),
+      }),
+    ))
+    await new Promise(resolve => setTimeout(resolve, 10))
+  })
+
+  await act(async () => { container.querySelector('.dx-launcher').click() })
+  const card = container.querySelector('.dx-card')
+  assert.ok(card !== null)
+  assert.equal(card.querySelector('.dx-model').textContent.trim(), 'deepseek-flash')
+
+  await act(async () => {
+    setTextarea(card.querySelector('.dx-input'), '你好')
+    card.querySelector('.dx-send').click()
+    await new Promise(resolve => setTimeout(resolve, 30))
+  })
+  assert.equal(requests[0].provider, 'newapi')
+  assert.equal(requests[0].model, 'deepseek-flash')
+
+  await act(async () => { root.unmount() })
+  container.remove()
+})
+
 test('the window opens, streams an answer and keeps follow-ups on one thread', async () => {
   const registrations = harness()
   const overlay = registrations.find(item => item.options.id === 'explainer.window')
@@ -230,7 +378,7 @@ test('a selection in the right sidebar document preview carries the file path', 
   const requests = []
   dom.window.fetch = async (url, init) => {
     if (String(url).includes('/explainer/config')) {
-      return new Response(JSON.stringify({ ok: true, config: { enabled: true, showMeta: true, selectionMaxChars: 6000, inheritContext: true, presets: [], rightClick: true } }), {
+      return new Response(JSON.stringify({ ok: true, config: { enabled: true, showMeta: true, selectionMaxChars: 6000, inheritContext: true, presets: [], rightClick: true, autoAnswer: false, autoAnswer: false } }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       })
@@ -302,7 +450,7 @@ test('the document toolbar Ask action opens with the file and no quote', async (
   const requests = []
   dom.window.fetch = async (url, init) => {
     if (String(url).includes('/explainer/config')) {
-      return new Response(JSON.stringify({ ok: true, config: { enabled: true, showMeta: true, selectionMaxChars: 6000, inheritContext: true, presets: [], rightClick: true } }), {
+      return new Response(JSON.stringify({ ok: true, config: { enabled: true, showMeta: true, selectionMaxChars: 6000, inheritContext: true, presets: [], rightClick: true, autoAnswer: false, autoAnswer: false } }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       })
@@ -354,7 +502,7 @@ test('a selection in the better-sidebar editor resolves its tab path', async () 
   const requests = []
   dom.window.fetch = async (url, init) => {
     if (String(url).includes('/explainer/config')) {
-      return new Response(JSON.stringify({ ok: true, config: { enabled: true, showMeta: true, selectionMaxChars: 6000, inheritContext: true, presets: [], rightClick: true } }), {
+      return new Response(JSON.stringify({ ok: true, config: { enabled: true, showMeta: true, selectionMaxChars: 6000, inheritContext: true, presets: [], rightClick: true, autoAnswer: false, autoAnswer: false } }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       })
@@ -413,5 +561,153 @@ test('a selection in the better-sidebar editor resolves its tab path', async () 
 
   await act(async () => { root.unmount() })
   pane.remove()
+  container.remove()
+})
+
+test('same-origin iframe selection opens the shared overlay and sends its parent-owned file path', async () => {
+  const registrations = harness()
+  const overlay = registrations.find(item => item.options.id === 'explainer.window')
+  const requests = []
+  dom.window.fetch = async (url, init) => {
+    if (String(url).includes('/explainer/config')) return new Response(JSON.stringify({ ok: true, config: {
+      enabled: true, selectionMaxChars: 6000, inheritContext: true, presets: [], rightClick: true, autoAnswer: false,
+    } }), { status: 200 })
+    requests.push(JSON.parse(init.body))
+    return sse(['event: done\ndata: {"ms":1}\n\n'])
+  }
+  const preview = document.createElement('div')
+  preview.setAttribute('data-textpreview-state', 'html')
+  preview.innerHTML = '<span data-explainer-file-path="/workspace/embedded.html"></span><div data-textpreview-body><iframe></iframe></div>'
+  document.body.appendChild(preview)
+  const frame = preview.querySelector('iframe')
+  const doc = frame.contentDocument
+  doc.body.innerHTML = '<p>embedded selection</p>'
+  doc.defaultView.Range.prototype.getClientRects = () => [RECT]
+  frame.getBoundingClientRect = () => ({ left: 20, top: 10, right: 520, bottom: 410, width: 500, height: 400 })
+  Object.defineProperty(frame, 'offsetWidth', { value: 500 })
+  Object.defineProperty(frame, 'offsetHeight', { value: 400 })
+  const container = document.createElement('div'); document.body.appendChild(container)
+  const root = createRoot(container)
+  try {
+    await act(async () => { root.render(React.createElement(overlay.component, {
+      useSessions: select => select({ byId: { s1: { retainedBy: { mainView: 1 } } } }),
+    })) })
+    await act(async () => {
+      const range = doc.createRange(); range.selectNodeContents(doc.querySelector('p'))
+      doc.defaultView.getSelection().addRange(range)
+      doc.dispatchEvent(new doc.defaultView.MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+    })
+    const card = container.querySelector('.dx-card')
+    assert.ok(card)
+    assert.equal(card.querySelector('.dx-file').textContent.trim(), 'embedded.html')
+    assert.match(card.querySelector('.dx-quote').textContent, /embedded selection/)
+    assert.equal(requests.length, 0, 'opening is not an automatic provider request')
+    await act(async () => { card.querySelector('.dx-send').click(); await new Promise(resolve => setTimeout(resolve, 30)) })
+    assert.equal(requests[0].selection, 'embedded selection')
+    assert.equal(requests[0].filePath, '/workspace/embedded.html')
+  } finally {
+    await act(async () => { root.unmount() })
+    preview.remove(); container.remove()
+  }
+})
+
+test('an English selection answers itself without pressing Enter', async () => {
+  const registrations = harness()
+  const overlay = registrations.find(item => item.options.id === 'explainer.window')
+  const requests = []
+  dom.window.fetch = async (url, init) => {
+    if (String(url).includes('/explainer/config')) {
+      return new Response(JSON.stringify({ ok: true, config: { enabled: true, showMeta: true, selectionMaxChars: 6000, inheritContext: true, presets: [], rightClick: true, autoAnswer: true } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+    requests.push(JSON.parse(init.body))
+    return sse([
+      'event: meta\ndata: {"provider":"p","model":"m","effort":"off"}\n\n',
+      'event: delta\ndata: {"text":"分支贵在合并。"}\n\n',
+      'event: done\ndata: {"ms":1}\n\n',
+    ])
+  }
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  const useSessions = (select) => select({ byId: { s1: { retainedBy: { mainView: 1 } } } })
+  await act(async () => {
+    root.render(React.createElement(overlay.component, { useSessions }))
+  })
+  const chat = document.createElement('div')
+  chat.setAttribute('data-slot', 'conversation.chat.flow')
+  chat.textContent = 'The cost of a branch is mostly in merging, not in creating it.'
+  document.body.appendChild(chat)
+  await act(async () => {
+    const range = document.createRange()
+    range.selectNodeContents(chat)
+    const selection = dom.window.getSelection()
+    selection.removeAllRanges()
+    selection.addRange(range)
+    chat.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+  })
+  assert.ok(container.querySelector('.dx-card') !== null, 'the window opens')
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 650)) })
+  assert.equal(requests.length, 1, 'the default answer starts by itself')
+  assert.equal(requests[0].question, '', 'no question was typed')
+  assert.match(requests[0].selection, /cost of a branch/)
+  const bubble = container.querySelector('.dx-turn-user, .dx-body')
+  assert.ok(bubble !== null)
+  await act(async () => { root.unmount() })
+  chat.remove()
+  container.remove()
+})
+
+test('typing before the automatic answer cancels it', async () => {
+  const registrations = harness()
+  const overlay = registrations.find(item => item.options.id === 'explainer.window')
+  const requests = []
+  dom.window.fetch = async (url, init) => {
+    if (String(url).includes('/explainer/config')) {
+      return new Response(JSON.stringify({ ok: true, config: { enabled: true, showMeta: true, selectionMaxChars: 6000, inheritContext: true, presets: [], rightClick: true, autoAnswer: true } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+    requests.push(JSON.parse(init.body))
+    return sse([
+      'event: meta\ndata: {"provider":"p","model":"m","effort":"off"}\n\n',
+      'event: delta\ndata: {"text":"好"}\n\n',
+      'event: done\ndata: {"ms":1}\n\n',
+    ])
+  }
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  const useSessions = (select) => select({ byId: { s1: { retainedBy: { mainView: 1 } } } })
+  await act(async () => {
+    root.render(React.createElement(overlay.component, { useSessions }))
+  })
+  const chat = document.createElement('div')
+  chat.setAttribute('data-slot', 'conversation.chat.flow')
+  chat.textContent = 'The cost of a branch is mostly in merging, not in creating it.'
+  document.body.appendChild(chat)
+  await act(async () => {
+    const range = document.createRange()
+    range.selectNodeContents(chat)
+    const selection = dom.window.getSelection()
+    selection.removeAllRanges()
+    selection.addRange(range)
+    chat.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+  })
+  const input = container.querySelector('.dx-input')
+  await act(async () => { setTextarea(input, '这句话重点是什么？') })
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 650)) })
+  assert.equal(requests.length, 0, 'typing cancels the automatic answer')
+  await act(async () => {
+    container.querySelector('.dx-send').click()
+    await new Promise(resolve => setTimeout(resolve, 30))
+  })
+  assert.equal(requests.length, 1)
+  assert.equal(requests[0].question, '这句话重点是什么？')
+  await act(async () => { root.unmount() })
+  chat.remove()
   container.remove()
 })

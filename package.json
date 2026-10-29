@@ -1,7 +1,7 @@
 {
   "name": "dsh-explainer",
-  "version": "0.2.1",
-  "description": "Select text in the DSH chat and ask about it in place, or open a fast isolated ask window. Answers stream from a one-shot completion that follows the main window model, inherits a read-only context snapshot, and reads files the question references.",
+  "version": "0.3.0",
+  "description": "Zero-friction quick ask for DeepSeek Harness: select text in chat, Markdown/code, rendered HTML reports, or the right-sidebar editor and get a fast, isolated, one-shot explanation that follows the main model and never writes to the main session.",
   "type": "module",
   "license": "MIT",
   "main": "./lib/host/index.js",
@@ -20,6 +20,8 @@
     "lib",
     "cordis.patch.yml",
     "README.md",
+    "AGENTS.md",
+    "PREVIEW-SELECTION.md",
     "LICENSE",
     "assets/icon-180.png"
   ],
@@ -76,7 +78,12 @@
     "cordis",
     "quick-ask",
     "explain",
+    "translate",
     "selection",
+    "html-preview",
+    "selection-bridge",
+    "agent-tools",
+    "fast",
     "ui"
   ],
   "publishConfig": {

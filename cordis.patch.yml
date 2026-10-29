@@ -11,4 +11,6 @@
         maxTokens: 800
         temperature: 0.3
         inheritContext: true
+        autoAnswer: true
         maxTurns: 3
+        # defaultModel: <provider>/<model>   # 钉住弹窗默认模型；删掉即跟随主对话
