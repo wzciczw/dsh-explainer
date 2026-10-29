@@ -101,7 +101,7 @@ button.dx-badge{cursor:pointer}
 .dx-md a{color:var(--dx-accent);text-decoration:none}
 .dx-md a:hover{text-decoration:underline}
 
-.dx-model{max-width:118px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.75}
+.dx-model,.dx-file{max-width:118px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.75}
 
 .dx-launcher{display:inline-flex;align-items:center;gap:5px;font:inherit;font-size:12px;line-height:1;
   padding:5px 9px;border-radius:7px;cursor:pointer;border:1px solid transparent;background:transparent;

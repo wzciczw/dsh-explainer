@@ -10,7 +10,7 @@ import type {
 } from './types.js'
 import { composeFollowUp, composeOpening, SYSTEM_PROMPT } from './prompt.js'
 import { readSessionCwd, readSessionModel, readTranscript } from './transcript.js'
-import { readFileGrounding } from './files.js'
+import { readFileContext, readFileGrounding } from './files.js'
 import type { Thread, ThreadStore } from './threads.js'
 
 /** A refusal the SSE writer can serialize without leaking internals. */
@@ -89,20 +89,24 @@ export class AskEngine {
           ? readTranscript(sessions, request.sessionId, this.config.contextMaxMessages, this.config.contextMaxChars)
           : { text: '', turns: 0, chars: 0 }
         const cwd = readSessionCwd(sessions, request.sessionId)
-        const files = this.config.fileAccess
-          ? await readFileGrounding({
+        const explicitFile = this.config.fileAccess && request.filePath !== undefined
+          ? await readFileContext(cwd, request.filePath, this.config.fileContextMaxChars)
+          : ''
+        const files = !this.config.fileAccess || explicitFile !== ''
+          ? ''
+          : await readFileGrounding({
               cwd,
               text: [request.selection ?? '', request.question, snapshot.text].join('\n'),
               maxFiles: this.config.fileMaxFiles,
               maxChars: this.config.fileMaxChars,
               excerptChars: this.config.fileExcerptChars,
             })
-          : ''
         const first = composeOpening({
           selection: request.selection ?? '',
           question: request.question,
           context: snapshot.text,
           files,
+          file: explicitFile,
         })
         thread = this.threads.create({
           id: request.threadId,

@@ -34,6 +34,7 @@ export function composeOpening(input: {
   question: string
   context: string
   files: string
+  file: string
 }): string {
   const selection = normalizeText(input.selection, SELECTION_MAX)
   const question = normalizeText(input.question, QUESTION_MAX)
@@ -45,6 +46,7 @@ export function composeOpening(input: {
     )
     parts.push(block('当前对话的只读快照', input.context))
   }
+  if (input.file !== '') parts.push('[当前文件]\n' + input.file)
   if (input.files !== '') parts.push(block('文件快照', input.files))
   if (selection !== '') {
     parts.push(block('用户选中的文字', selection))

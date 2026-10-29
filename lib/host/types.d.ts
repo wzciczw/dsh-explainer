@@ -163,6 +163,8 @@ export interface AskRequest {
     mode: 'selection' | 'quick';
     question: string;
     selection?: string;
+    /** Absolute path of a right-sidebar file the selection came from. */
+    filePath?: string;
     sessionId?: string;
     inheritContext?: boolean;
     provider?: string;
@@ -189,6 +191,7 @@ export interface ExplainerConfig {
     maxConcurrent: number;
     rightClick: boolean;
     fileAccess: boolean;
+    fileContextMaxChars: number;
     fileMaxFiles: number;
     fileMaxChars: number;
     fileExcerptChars: number;

@@ -88,7 +88,7 @@ export class ExplainerStore {
     return this.snap.ready && this.snap.config?.enabled === false
   }
 
-  showHint(text: string, rect: RectLike): void {
+  showHint(text: string, rect: RectLike, filePath?: string): void {
     if (this.disabled() || this.snap.card !== null) return
     const current = this.snap.hint
     if (
@@ -96,8 +96,9 @@ export class ExplainerStore {
       && current.text === text
       && Math.abs(current.rect.left - rect.left) < 2
       && Math.abs(current.rect.top - rect.top) < 2
+      && current.filePath === filePath
     ) return
-    this.emit({ hint: { text, rect } })
+    this.emit({ hint: { text, rect, ...(filePath === undefined ? {} : { filePath }) } })
   }
 
   hideHint(): void {
@@ -106,10 +107,17 @@ export class ExplainerStore {
 
   /* ------------------------------------------------------------------ open */
 
-  private freshCard(mode: 'selection' | 'quick', anchor: RectLike, quote: string, inheritContext: boolean): CardState {
+  private freshCard(
+    mode: 'selection' | 'quick',
+    anchor: RectLike,
+    quote: string,
+    inheritContext: boolean,
+    filePath?: string,
+  ): CardState {
     return {
       mode,
       quote,
+      ...(filePath === undefined ? {} : { filePath }),
       anchor,
       phase: 'input',
       messages: [],
@@ -123,13 +131,13 @@ export class ExplainerStore {
     }
   }
 
-  openSelection(anchor: RectLike, text: string): void {
+  openSelection(anchor: RectLike, text: string, filePath?: string): void {
     if (this.disabled()) return
     const config = this.snap.config ?? DEFAULTS
     const quote = text.slice(0, config.selectionMaxChars)
     this.emit({
       hint: null,
-      card: this.freshCard('selection', anchor, quote, config.inheritContext),
+      card: this.freshCard('selection', anchor, quote, config.inheritContext, filePath),
     })
     this.ensureConfig()
   }
@@ -234,6 +242,7 @@ export class ExplainerStore {
       mode: card.mode,
       question,
       ...(card.mode === 'selection' && first ? { selection: card.quote } : {}),
+      ...(first && card.filePath !== undefined ? { filePath: card.filePath } : {}),
       ...(this.snap.sessionModel === null
         ? {}
         : { provider: this.snap.sessionModel.provider, model: this.snap.sessionModel.model }),

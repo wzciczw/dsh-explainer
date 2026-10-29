@@ -1,11 +1,25 @@
 import type { RectLike } from './types'
 
-/** The conversation message flow, the trajectory view's container, and the composer. */
+/** The conversation message flow, the trajectory view's container, the composer, and the document preview. */
 const CHAT_SELECTOR = '[data-slot="conversation.chat.flow"]'
 const MAIN_SELECTOR = '[data-slot="main.conversation"]'
 const COMPOSER_SELECTOR = '[data-slot="conversation.composer"]'
+const DOCUMENT_BODY_SELECTOR = '[data-textpreview-body]'
+const DOCUMENT_ROOT_SELECTOR = '[data-textpreview-state]'
+const FILE_MARKER_SELECTOR = '[data-explainer-file-path]'
 const CARD_ATTR = 'data-explainer-card'
 const EDITABLE_SELECTOR = 'input, textarea, [contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"]'
+
+/** Where a valid selection came from. */
+export type SelectionKind = 'chat' | 'file'
+
+/** One accepted selection with its anchor and, for file views, the absolute path. */
+export interface DetectedSelection {
+  kind: SelectionKind
+  text: string
+  rect: RectLike
+  filePath?: string
+}
 
 function elementOf(node: Node | null): Element | null {
   if (node === null) return null
@@ -34,6 +48,23 @@ function inConversation(node: Node | null): boolean {
   return element.closest(CHAT_SELECTOR) !== null || element.closest(MAIN_SELECTOR) !== null
 }
 
+/**
+ * The absolute path published by the document preview's toolbar marker for the
+ * preview root that contains this node. Inactive tabs keep their own marker,
+ * so matching on the enclosing root avoids reporting another tab's file.
+ */
+function filePathOf(node: Node | null): string | undefined {
+  const element = elementOf(node)
+  if (element === null) return undefined
+  const body = element.closest(DOCUMENT_BODY_SELECTOR)
+  if (body === null) return undefined
+  const root = body.closest(DOCUMENT_ROOT_SELECTOR)
+  if (root === null) return undefined
+  const marker = root.querySelector(FILE_MARKER_SELECTOR)
+  const path = marker?.getAttribute('data-explainer-file-path')?.trim()
+  return path === undefined || path === '' ? undefined : path
+}
+
 /** Normalize a DOM selection into plain text while keeping paragraph breaks. */
 function selectionText(selection: Selection): string {
   return selection
@@ -55,20 +86,28 @@ function selectionRect(range: Range): RectLike | null {
   return bounds.width === 0 && bounds.height === 0 ? null : bounds
 }
 
-/** Read a valid chat selection, or null when it is empty or out of scope. */
-export function readChatSelection(): { text: string; rect: RectLike } | null {
+/**
+ * Read a valid selection from the conversation or from the right sidebar's
+ * document preview. The preview needs its file marker (installed by this
+ * plugin's toolbar contribution); without one the selection is ignored.
+ */
+export function readSelection(): DetectedSelection | null {
   const selection = window.getSelection()
   if (selection === null || selection.isCollapsed || selection.rangeCount === 0) return null
   const range = selection.getRangeAt(0)
   if (range.collapsed) return null
   if (isInsideOurCard(range.commonAncestorContainer)) return null
   if (isEditable(range.commonAncestorContainer)) return null
-  if (!inConversation(range.commonAncestorContainer)) return null
   const text = selectionText(selection)
   if (text.length < 2) return null
   const rect = selectionRect(range)
   if (rect === null) return null
-  return { text: text.length > 20_000 ? text.slice(0, 20_000) : text, rect }
+  const capped = text.length > 20_000 ? text.slice(0, 20_000) : text
+
+  const filePath = filePathOf(range.commonAncestorContainer)
+  if (filePath !== undefined) return { kind: 'file', text: capped, rect, filePath }
+  if (inConversation(range.commonAncestorContainer)) return { kind: 'chat', text: capped, rect }
+  return null
 }
 
 /** Where the quick-ask window opens when there is no selection. */
@@ -77,13 +116,6 @@ export function findComposerRect(): RectLike | null {
   if (element === null) return null
   const rect = element.getBoundingClientRect()
   return rect.width === 0 && rect.height === 0 ? null : rect
-}
-
-/** Whether two rectangles are close enough to skip a hint reposition. */
-export function sameRect(a: RectLike, b: RectLike): boolean {
-  return Math.abs(a.left - b.left) < 2
-    && Math.abs(a.top - b.top) < 2
-    && Math.abs(a.width - b.width) < 2
 }
 
 /** Keep a floating box inside the viewport with a small margin. */

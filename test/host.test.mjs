@@ -223,6 +223,43 @@ test('file grounding reads the workspace read-only and refuses paths outside it'
   assert.doesNotMatch(second, /\[文件快照\]/)
 })
 
+test('a right-sidebar file is read whole as the primary context', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'explainer-file-'))
+  const filePath = join(directory, 'notes.md')
+  await writeFile(filePath, '# Notes\nThe answer is 42.', 'utf8')
+
+  const sessions = {
+    get: () => ({ header: { cwd: directory }, snapshotEvents: () => [] }),
+  }
+  const ctx = { get: key => (key === 'sessions' ? sessions : undefined), logger: {} }
+  const { llm, calls } = fakeLlm()
+  const engine = new AskEngine(ctx, llm, new ThreadStore(10, 60_000), normalizeConfig({ inheritContext: false }))
+
+  await engine.run(
+    { threadId: 'file-context-1', mode: 'selection', question: '这是什么？', selection: 'The answer', filePath, sessionId: 's1' },
+    new AbortController().signal,
+    () => {},
+  )
+  const message = calls[0].messages[0].content[0].text
+  assert.match(message, /\[当前文件\]/)
+  assert.match(message, /notes\.md/)
+  assert.match(message, /The answer is 42/)
+  assert.match(message, /修改时间: /)
+  assert.doesNotMatch(message, /\[文件快照\]/, 'the explicit file replaces path-based grounding')
+
+  const outsideDir = await mkdtemp(join(tmpdir(), 'explainer-out-'))
+  const outsidePath = join(outsideDir, 'secret.txt')
+  await writeFile(outsidePath, 'top secret', 'utf8')
+  await engine.run(
+    { threadId: 'file-context-2', mode: 'selection', question: 'hi', filePath: outsidePath, sessionId: 's1' },
+    new AbortController().signal,
+    () => {},
+  )
+  const second = calls[1].messages[0].content[0].text
+  assert.doesNotMatch(second, /\[当前文件\]/, 'outside the workspace is refused')
+  assert.doesNotMatch(second, /top secret/)
+})
+
 test('a busy engine refuses instead of queueing', async () => {
   const { ctx } = fakeCtx()
   const { llm } = fakeLlm()

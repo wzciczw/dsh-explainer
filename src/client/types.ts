@@ -33,6 +33,8 @@ export type Phase = 'input' | 'streaming' | 'answer'
 export interface CardState {
   mode: 'selection' | 'quick'
   quote: string
+  /** Absolute path of the right-sidebar file this selection came from. */
+  filePath?: string
   anchor: RectLike
   phase: Phase
   messages: Turn[]
@@ -51,6 +53,8 @@ export interface CardState {
 export interface HintState {
   text: string
   rect: RectLike
+  /** Absolute path when the selection came from a right-sidebar file. */
+  filePath?: string
 }
 
 /** Public configuration mirror served by GET /explainer/config. */

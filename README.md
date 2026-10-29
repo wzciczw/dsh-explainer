@@ -4,8 +4,7 @@
 [![license](https://img.shields.io/npm/l/dsh-explainer)](LICENSE)
 [![dsh](https://img.shields.io/badge/dsh-%3E%3D0.2.1--rc.2-4a86ff)](https://github.com/deepseek-ai/deepseek-harness)
 
-> 在 DSH 对话里选中文字就地提问；不选文字时也能开一个独立的快问窗口。
-> 一次 completion、最低思考档、流式回答；沿用主窗口的模型，继承只读上下文，不写回主会话。
+> 快问：选中文字、右键，或在右侧栏文件里划词，就地得到答案。一次 completion、最低思考档、流式输出；沿用主窗口模型，继承只读上下文，不写回主会话。
 
 English: select text in the DSH Web GUI and ask about it in place, or open a quick-ask window. Answers stream from a one-shot completion that follows the main window's model, inherits a read-only context snapshot, and reads files the question references. Nothing is written back to the main session.
 
@@ -14,6 +13,7 @@ English: select text in the DSH Web GUI and ask about it in place, or open a qui
 ## 功能
 
 - **划词问**：选中对话里的文字 → 出现「✦ 问这段」→ 点击、**右键**或 `Ctrl/Cmd+Shift+E` 打开窗口。
+- **右侧栏文件也能用**：在右侧打开的文件预览里划词或右键，同样打开快问；默认读取该文件全文作为上下文（仅工作区内，只读）。
 - **快问**：输入框右侧「✦ 快问」或 `Ctrl/Cmd+Shift+K` 打开同一张卡片，不带引用。
 - **模型与主窗口一致**：读取主窗口的 `modelSelection` 投影，每次请求都带同一个 `provider/model`；主窗口切换后立即跟随。
 - **零点击追问**：输入框常驻卡片底部，答案结束后直接回车继续问，沿用同一个隔离线程。
@@ -87,6 +87,7 @@ npm run build
     maxConcurrent: 4
     rightClick: true        # 选中文字后右键直接打开
     fileAccess: true        # 注入问题中提到的文件（只读）
+    fileContextMaxChars: 20000 # 右侧栏文件作为上下文时的全文上限
     fileMaxFiles: 4
     fileMaxChars: 12000
     fileExcerptChars: 4000
@@ -110,7 +111,7 @@ npm run build
 ```
 
 - **模型**：浏览器从 `useProjection('modelSelection')` 读主窗口的持久选择，随每次请求发送；宿主优先级 request → 主会话 request/header → 本线程上次 → 插件配置 → 部署默认。
-- **文件**：宿主从选区、问题、继承的对话里提取路径/文件名，只在会话工作区内 `realpath` 校验后读取 mtime、大小和前 4000 字；越界路径忽略。
+- **文件**：右侧栏文件选择会带上绝对路径，宿主读取该文件全文（上限 `fileContextMaxChars`）作为上下文；普通对话选择则从选区/问题/继承对话里提取路径/文件名，只在会话工作区内 `realpath` 校验后读取 mtime、大小和片段；越界路径忽略。
 - **Host**：`src/host`，Cordis 插件；有界线程表、一次性模型调用、SSE 路由。
 - **Client**：`src/client`，两个 slot —— `shell.overlay`（浮动层）与 `conversation.input.right`（启动按钮 + 会话桥）。
 - 不 import `@deepseek-ai/*` 运行时；宿主能力走 `ctx.get(...)` 的结构化接口，跨小版本更稳。
@@ -125,7 +126,7 @@ npm run typecheck
 npm test             # 构建 + node --test test/*.test.mjs
 ```
 
-测试覆盖（16 项）：配置边界、会话快照、线程 LRU/TTL、引擎（继承一次/追问/模型优先级/并发/effort/会话日志不变）、文件快照与越界拒绝、HTTP 路由与 SSE、bundle 冒烟、jsdom UI（流式/追问/插入/点外关闭/右键打开）。
+测试覆盖（19 项）：配置边界、会话快照、线程 LRU/TTL、引擎（继承一次/追问/模型优先级/并发/effort/会话日志不变）、文件快照与越界拒绝、右侧栏文件全文上下文、HTTP 路由与 SSE、bundle 冒烟、jsdom UI（流式/追问/插入/点外关闭/右键打开/侧栏文件路径）。
 
 ## 端到端（真实浏览器）
 

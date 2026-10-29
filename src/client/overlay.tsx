@@ -2,7 +2,7 @@ import * as React from 'react'
 import type { ExplainerStore } from './store'
 import type { CardState, Turn } from './types'
 import { Markdown } from './markdown'
-import { findComposerRect, readChatSelection } from './selection'
+import { findComposerRect, readSelection } from './selection'
 import { useStore } from './use-store'
 
 export type Translate = (key: string) => string
@@ -90,9 +90,9 @@ export function Overlay(props: {
     let pointerDown = false
     let timer = 0
     const compute = (): void => {
-      const found = readChatSelection()
+      const found = readSelection()
       if (found === null) store.hideHint()
-      else store.showHint(found.text, found.rect)
+      else store.showHint(found.text, found.rect, found.filePath)
     }
     const onDown = (): void => { pointerDown = true }
     const onUp = (): void => {
@@ -141,10 +141,10 @@ export function Overlay(props: {
       const target = event.target as HTMLElement | null
       if (target === null) return
       if (target.closest('.dx-card, .dx-pill, .dx-launcher') !== null) return
-      const found = readChatSelection()
+      const found = readSelection()
       if (found === null) return
       event.preventDefault()
-      store.openSelection(found.rect, found.text)
+      store.openSelection(found.rect, found.text, found.filePath)
     }
     document.addEventListener('contextmenu', onContextMenu, true)
     return () => { document.removeEventListener('contextmenu', onContextMenu, true) }
@@ -162,9 +162,9 @@ export function Overlay(props: {
       }
       if (mod && event.shiftKey && (event.key === 'E' || event.key === 'e')) {
         event.preventDefault()
-        const found = readChatSelection()
+        const found = readSelection()
         if (found === null) store.notify(t('selectFirst'))
-        else store.openSelection(found.rect, found.text)
+        else store.openSelection(found.rect, found.text, found.filePath)
         return
       }
       if (event.key === 'Escape') {
@@ -194,7 +194,7 @@ export function Overlay(props: {
           }}
           title={t('rightClickHint')}
           onMouseDown={event => event.preventDefault()}
-          onClick={() => store.openSelection(hint.rect, hint.text)}
+          onClick={() => store.openSelection(hint.rect, hint.text, hint.filePath)}
         >
           <span className="dx-spark">✦</span>
           {t('askSelection')}
@@ -304,6 +304,11 @@ function Card(props: {
           <span className="dx-spark">✦</span>
           {card.mode === 'selection' ? t('askSelection') : t('quickAsk')}
         </span>
+        {card.filePath !== undefined && (
+          <span className="dx-badge dx-file" title={card.filePath}>
+            {card.filePath.split(/[\\/]/).pop()}
+          </span>
+        )}
         {sessionModel !== null && (
           <span className="dx-badge dx-model" title={t('sameModel')}>{sessionModel.model}</span>
         )}

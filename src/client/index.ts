@@ -2,6 +2,7 @@ import * as React from 'react'
 import { ExplainerStore } from './store'
 import { Overlay } from './overlay'
 import { ComposerButton } from './composer'
+import { FileMarker } from './file-marker'
 import { STRINGS } from './locales'
 import { STYLES } from './styles'
 
@@ -51,6 +52,15 @@ export function apply(ctx: ClientContext): void {
       store,
       t,
       useSessions: props['useSessions'] as never,
+    }),
+  ))
+
+  // The right sidebar's document preview gets a hidden marker carrying the
+  // previewed file's absolute path; selection detection reads it back.
+  ctx.slots.inject('sidebar.right.tab.document.actions', () => ctx.slots.register(
+    { name: 'sidebar.right.tab.document.actions', id: 'explainer.file-context', order: 500 },
+    (props: SlotProps) => React.createElement(FileMarker, {
+      absolutePath: props['absolutePath'] as string,
     }),
   ))
 

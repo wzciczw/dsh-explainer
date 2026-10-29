@@ -221,3 +221,73 @@ test('right-clicking a chat selection opens the window directly', async () => {
   chat.remove()
   container.remove()
 })
+
+test('a selection in the right sidebar document preview carries the file path', async () => {
+  const registrations = harness()
+  const overlay = registrations.find(item => item.options.id === 'explainer.window')
+  assert.ok(overlay !== undefined)
+
+  const requests = []
+  dom.window.fetch = async (url, init) => {
+    if (String(url).includes('/explainer/config')) {
+      return new Response(JSON.stringify({ ok: true, config: { enabled: true, showMeta: true, selectionMaxChars: 6000, inheritContext: true, presets: [], rightClick: true } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+    requests.push(JSON.parse(init.body))
+    return sse([
+      'event: meta\ndata: {"provider":"p","model":"m","effort":"off"}\n\n',
+      'event: delta\ndata: {"text":"好的"}\n\n',
+      'event: done\ndata: {"ms":1}\n\n',
+    ])
+  }
+
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  const useSessions = (select) => select({ byId: { s1: { retainedBy: { mainView: 1 } } } })
+
+  await act(async () => {
+    root.render(React.createElement(overlay.component, { useSessions }))
+  })
+
+  const preview = document.createElement('div')
+  preview.setAttribute('data-textpreview-state', 'text')
+  const marker = document.createElement('span')
+  marker.setAttribute('data-explainer-file-path', '/workspace/notes.md')
+  marker.hidden = true
+  const body = document.createElement('div')
+  body.setAttribute('data-textpreview-body', '')
+  const paragraph = document.createElement('p')
+  paragraph.textContent = 'alpha beta gamma'
+  body.appendChild(paragraph)
+  preview.append(marker, body)
+  document.body.appendChild(preview)
+
+  await act(async () => {
+    const range = document.createRange()
+    range.setStart(paragraph.firstChild, 0)
+    range.setEnd(paragraph.firstChild, 5)
+    const selection = dom.window.getSelection()
+    selection.removeAllRanges()
+    selection.addRange(range)
+    preview.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+  })
+
+  const card = container.querySelector('.dx-card')
+  assert.ok(card !== null, 'right-click in the preview opens the window')
+  assert.equal(card.querySelector('.dx-file').textContent.trim(), 'notes.md')
+
+  await act(async () => { setTextarea(card.querySelector('.dx-input'), '这段什么意思') })
+  await act(async () => {
+    card.querySelector('.dx-send').click()
+    await new Promise(resolve => setTimeout(resolve, 30))
+  })
+  assert.equal(requests.length, 1)
+  assert.equal(requests[0].filePath, '/workspace/notes.md')
+
+  await act(async () => { root.unmount() })
+  preview.remove()
+  container.remove()
+})

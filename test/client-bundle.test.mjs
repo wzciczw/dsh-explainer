@@ -66,9 +66,10 @@ test('the built client bundle loads and registers both seats', () => {
 
   module.apply(context)
 
-  assert.deepEqual(seats.map(seat => seat.id), ['explainer.window', 'explainer.quick'])
+  assert.deepEqual(seats.map(seat => seat.id), ['explainer.window', 'explainer.file-context', 'explainer.quick'])
   assert.equal(seats[0].order, 520)
-  assert.equal(seats[1].order, 260)
+  assert.equal(seats[1].order, 500)
+  assert.equal(seats[2].order, 260)
   assert.equal(appended.length, 1, 'the stylesheet is injected exactly once')
   assert.equal(typeof appended[0].textContent, 'string')
   assert.match(appended[0].textContent, /\.dx-card/)

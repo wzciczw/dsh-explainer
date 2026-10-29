@@ -94,6 +94,9 @@ function parseAsk(body: unknown, config: ExplainerConfig): AskRequest {
     mode,
     question: text(raw.question, 4_000),
     selection: text(raw.selection, config.selectionMaxChars),
+    ...(typeof raw.filePath === 'string' && raw.filePath !== '' && raw.filePath.length <= 2_048
+      ? { filePath: raw.filePath }
+      : {}),
     ...(typeof raw.sessionId === 'string' && raw.sessionId !== '' && raw.sessionId.length <= 200
       ? { sessionId: raw.sessionId }
       : {}),

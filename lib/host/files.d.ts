@@ -15,3 +15,13 @@ export interface FileGroundingOptions {
  * mtime, size and a short excerpt are appended to the prompt.
  */
 export declare function readFileGrounding(options: FileGroundingOptions): Promise<string>;
+/**
+ * Read the complete text of one workspace file as the primary context for a
+ * selection made in the right sidebar's document preview.
+ *
+ * Unlike {@link readFileGrounding} (which discovers paths mentioned in text
+ * and attaches short excerpts), this is an explicit request for one file: the
+ * caller already knows the path, so the whole document is attached up to the
+ * configured cap. Anything outside the session workspace is refused.
+ */
+export declare function readFileContext(cwd: string | undefined, filePath: string | undefined, maxChars: number): Promise<string>;
