@@ -281,7 +281,9 @@ function Card(props: {
   const streaming = card.phase === 'streaming'
   const canSend = streaming || card.draft.trim() !== '' || (card.messages.length === 0 && card.mode === 'selection')
   const placeholder = card.messages.length === 0
-    ? (card.mode === 'selection' ? t('placeholderSelection') : t('placeholderQuick'))
+    ? (card.mode === 'selection'
+        ? (card.filePath !== undefined && card.quote === '' ? t('placeholderFile') : t('placeholderSelection'))
+        : t('placeholderQuick'))
     : t('placeholderFollow')
 
   const presets: Array<{ id: string; label: string; question: string }> = [

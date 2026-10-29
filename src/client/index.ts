@@ -60,6 +60,8 @@ export function apply(ctx: ClientContext): void {
   ctx.slots.inject('sidebar.right.tab.document.actions', () => ctx.slots.register(
     { name: 'sidebar.right.tab.document.actions', id: 'explainer.file-context', order: 500 },
     (props: SlotProps) => React.createElement(FileMarker, {
+      store,
+      t,
       absolutePath: props['absolutePath'] as string,
     }),
   ))

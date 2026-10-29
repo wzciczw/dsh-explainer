@@ -211,7 +211,11 @@ export class ExplainerStore {
     if (draft === '' && (!first || card.mode === 'quick')) return
     const question = draft
     const userText = draft === ''
-      ? (card.mode === 'selection' ? '解释这段' : '')
+      ? (card.mode === 'selection'
+          ? (card.filePath === undefined
+              ? '解释这段'
+              : (card.filePath.split(/[\\/]/).pop() ?? '这个文件'))
+          : '')
       : draft
     if (userText === '') return
 

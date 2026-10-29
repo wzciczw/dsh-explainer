@@ -7,6 +7,8 @@ const COMPOSER_SELECTOR = '[data-slot="conversation.composer"]'
 const DOCUMENT_BODY_SELECTOR = '[data-textpreview-body]'
 const DOCUMENT_ROOT_SELECTOR = '[data-textpreview-state]'
 const FILE_MARKER_SELECTOR = '[data-explainer-file-path]'
+/** The better-sidebar editor's native tab host and bottom-workbench pane. */
+const BETTER_SIDEBAR_HOSTS = '[data-dsh-native-tab-host], [data-dsh-pane]'
 const CARD_ATTR = 'data-explainer-card'
 const EDITABLE_SELECTOR = 'input, textarea, [contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"]'
 
@@ -53,7 +55,7 @@ function inConversation(node: Node | null): boolean {
  * preview root that contains this node. Inactive tabs keep their own marker,
  * so matching on the enclosing root avoids reporting another tab's file.
  */
-function filePathOf(node: Node | null): string | undefined {
+function documentPathOf(node: Node | null): string | undefined {
   const element = elementOf(node)
   if (element === null) return undefined
   const body = element.closest(DOCUMENT_BODY_SELECTOR)
@@ -63,6 +65,26 @@ function filePathOf(node: Node | null): string | undefined {
   const marker = root.querySelector(FILE_MARKER_SELECTOR)
   const path = marker?.getAttribute('data-explainer-file-path')?.trim()
   return path === undefined || path === '' ? undefined : path
+}
+
+/**
+ * The file path the better-sidebar editor shows for the tab that contains
+ * this node. Its header renders the path input with `title={path}`; matching
+ * on the enclosing pane/native-tab host keeps the answer scoped to the tab
+ * the user is selecting in.
+ */
+function editorPathOf(node: Node | null): string | undefined {
+  const element = elementOf(node)
+  if (element === null) return undefined
+  const host = element.closest(BETTER_SIDEBAR_HOSTS)
+  if (host === null) return undefined
+  // Editor headers also title plain controls; take the first title that has a
+  // path shape, not merely the first input in the pane.
+  for (const input of host.querySelectorAll('input[title]')) {
+    const path = input.getAttribute('title')?.trim()
+    if (path !== undefined && path !== '' && (path.includes('/') || path.includes('\\'))) return path
+  }
+  return undefined
 }
 
 /** Normalize a DOM selection into plain text while keeping paragraph breaks. */
@@ -97,16 +119,19 @@ export function readSelection(): DetectedSelection | null {
   const range = selection.getRangeAt(0)
   if (range.collapsed) return null
   if (isInsideOurCard(range.commonAncestorContainer)) return null
-  if (isEditable(range.commonAncestorContainer)) return null
   const text = selectionText(selection)
   if (text.length < 2) return null
   const rect = selectionRect(range)
   if (rect === null) return null
   const capped = text.length > 20_000 ? text.slice(0, 20_000) : text
 
-  const filePath = filePathOf(range.commonAncestorContainer)
+  const common = range.commonAncestorContainer
+  const filePath = documentPathOf(common) ?? editorPathOf(common)
+  // A file selection may sit in a CodeMirror contenteditable; that is the
+  // document being read, not a draft composer, so it is allowed here.
   if (filePath !== undefined) return { kind: 'file', text: capped, rect, filePath }
-  if (inConversation(range.commonAncestorContainer)) return { kind: 'chat', text: capped, rect }
+  if (isEditable(common)) return null
+  if (inConversation(common)) return { kind: 'chat', text: capped, rect }
   return null
 }
 

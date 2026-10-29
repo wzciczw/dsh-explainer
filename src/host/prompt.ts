@@ -47,6 +47,9 @@ export function composeOpening(input: {
     parts.push(block('当前对话的只读快照', input.context))
   }
   if (input.file !== '') parts.push('[当前文件]\n' + input.file)
+  if (selection === '' && question === '' && input.file !== '') {
+    parts.push(block('问题', '请概括这个文件并解释重点。 / Summarize this file and explain the key points.'))
+  }
   if (input.files !== '') parts.push(block('文件快照', input.files))
   if (selection !== '') {
     parts.push(block('用户选中的文字', selection))

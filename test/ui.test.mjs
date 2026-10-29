@@ -291,3 +291,127 @@ test('a selection in the right sidebar document preview carries the file path', 
   preview.remove()
   container.remove()
 })
+
+test('the document toolbar Ask action opens with the file and no quote', async () => {
+  const registrations = harness()
+  const action = registrations.find(item => item.options.id === 'explainer.file-context')
+  const overlay = registrations.find(item => item.options.id === 'explainer.window')
+  assert.ok(action !== undefined, 'the toolbar action is registered')
+  assert.ok(overlay !== undefined)
+
+  const requests = []
+  dom.window.fetch = async (url, init) => {
+    if (String(url).includes('/explainer/config')) {
+      return new Response(JSON.stringify({ ok: true, config: { enabled: true, showMeta: true, selectionMaxChars: 6000, inheritContext: true, presets: [], rightClick: true } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+    requests.push(JSON.parse(init.body))
+    return sse([
+      'event: meta\ndata: {"provider":"p","model":"m","effort":"off"}\n\n',
+      'event: delta\ndata: {"text":"好的"}\n\n',
+      'event: done\ndata: {"ms":1}\n\n',
+    ])
+  }
+
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  const useSessions = (select) => select({ byId: { s1: { retainedBy: { mainView: 1 } } } })
+  await act(async () => {
+    root.render(React.createElement(React.Fragment, null,
+      React.createElement(overlay.component, { useSessions }),
+      React.createElement(action.component, { absolutePath: '/workspace/report.html' }),
+    ))
+  })
+
+  const ask = container.querySelector('.dx-file-ask')
+  assert.ok(ask !== null, 'the toolbar Ask button renders')
+  await act(async () => { ask.click() })
+  const card = container.querySelector('.dx-card')
+  assert.ok(card !== null, 'the Ask button opens the window')
+  assert.equal(card.querySelector('.dx-file').textContent.trim(), 'report.html')
+  assert.equal(card.querySelector('.dx-quote'), null, 'no quote for the file-level ask')
+
+  await act(async () => {
+    card.querySelector('.dx-send').click()
+    await new Promise(resolve => setTimeout(resolve, 30))
+  })
+  assert.equal(requests.length, 1)
+  assert.equal(requests[0].filePath, '/workspace/report.html')
+  assert.equal(requests[0].question, '')
+
+  await act(async () => { root.unmount() })
+  container.remove()
+})
+
+test('a selection in the better-sidebar editor resolves its tab path', async () => {
+  const registrations = harness()
+  const overlay = registrations.find(item => item.options.id === 'explainer.window')
+  assert.ok(overlay !== undefined)
+
+  const requests = []
+  dom.window.fetch = async (url, init) => {
+    if (String(url).includes('/explainer/config')) {
+      return new Response(JSON.stringify({ ok: true, config: { enabled: true, showMeta: true, selectionMaxChars: 6000, inheritContext: true, presets: [], rightClick: true } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+    requests.push(JSON.parse(init.body))
+    return sse([
+      'event: meta\ndata: {"provider":"p","model":"m","effort":"off"}\n\n',
+      'event: delta\ndata: {"text":"好的"}\n\n',
+      'event: done\ndata: {"ms":1}\n\n',
+    ])
+  }
+
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  const useSessions = (select) => select({ byId: { s1: { retainedBy: { mainView: 1 } } } })
+  await act(async () => {
+    root.render(React.createElement(overlay.component, { useSessions }))
+  })
+
+  // Mimic better-sidebar's editor pane: a path input in the header and a
+  // CodeMirror-like contenteditable body.
+  const pane = document.createElement('div')
+  pane.setAttribute('data-dsh-pane', '')
+  const header = document.createElement('div')
+  const pathInput = document.createElement('input')
+  pathInput.setAttribute('title', '/workspace/report.md')
+  header.appendChild(pathInput)
+  const body = document.createElement('div')
+  body.setAttribute('contenteditable', 'true')
+  body.textContent = 'alpha beta gamma'
+  pane.append(header, body)
+  document.body.appendChild(pane)
+
+  await act(async () => {
+    const range = document.createRange()
+    range.setStart(body.firstChild, 0)
+    range.setEnd(body.firstChild, 5)
+    const selection = dom.window.getSelection()
+    selection.removeAllRanges()
+    selection.addRange(range)
+    pane.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+  })
+
+  const card = container.querySelector('.dx-card')
+  assert.ok(card !== null, 'right-click in the editor opens the window')
+  assert.equal(card.querySelector('.dx-file').textContent.trim(), 'report.md')
+
+  await act(async () => { setTextarea(card.querySelector('.dx-input'), '这段什么意思') })
+  await act(async () => {
+    card.querySelector('.dx-send').click()
+    await new Promise(resolve => setTimeout(resolve, 30))
+  })
+  assert.equal(requests.length, 1)
+  assert.equal(requests[0].filePath, '/workspace/report.md')
+
+  await act(async () => { root.unmount() })
+  pane.remove()
+  container.remove()
+})

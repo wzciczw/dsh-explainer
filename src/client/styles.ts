@@ -102,6 +102,12 @@ button.dx-badge{cursor:pointer}
 .dx-md a:hover{text-decoration:underline}
 
 .dx-model,.dx-file{max-width:118px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.75}
+.dx-file-ask{display:inline-flex;align-items:center;gap:5px;font:inherit;font-size:11px;line-height:1;
+  padding:3px 8px;border-radius:6px;cursor:pointer;white-space:nowrap;
+  border:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.16));background:transparent;
+  color:var(--dsw-alias-label-secondary,#a3abb8)}
+.dx-file-ask:hover{border-color:var(--dsw-alias-state-business-primary,#4a86ff);color:var(--dsw-alias-label-primary,#e7e9ee);background:rgba(74,134,255,.1)}
+.dx-file-ask>span{color:var(--dsw-alias-state-business-primary,#4a86ff)}
 
 .dx-launcher{display:inline-flex;align-items:center;gap:5px;font:inherit;font-size:12px;line-height:1;
   padding:5px 9px;border-radius:7px;cursor:pointer;border:1px solid transparent;background:transparent;
