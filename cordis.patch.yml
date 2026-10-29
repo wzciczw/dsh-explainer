@@ -1,0 +1,14 @@
+# Bundle patch for dsh-explainer.
+#
+# One job: insert the host row so the harness mounts the SSE routes and the
+# thread table. The row `name` must equal the installed package name; the
+# browser half is picked up from the package's `dsh.client` metadata and its
+# `./client` export.
+- insert:
+    - id: explainer
+      name: "dsh-explainer"
+      config:
+        maxTokens: 800
+        temperature: 0.3
+        inheritContext: true
+        maxTurns: 3
