@@ -91,6 +91,7 @@ test('a pinned default model labels the window and leads every request', async (
           presets: [],
           rightClick: true,
           defaultModel: { provider: 'newapi-gemini', model: 'gemini-3.8-flash' },
+          pinnedModel: { provider: 'newapi-gemini', model: 'gemini-3.8-flash' },
           modelGroups: [
             { id: 'newapi', name: '公司', models: [{ id: 'deepseek-flash', name: 'deepseek-flash' }] },
             { id: 'newapi-gemini', name: '公司 Gemini', models: [{ id: 'gemini-3.8-flash', name: 'gemini-3.8-flash' }] },
@@ -707,6 +708,57 @@ test('typing before the automatic answer cancels it', async () => {
   })
   assert.equal(requests.length, 1)
   assert.equal(requests[0].question, '这句话重点是什么？')
+  await act(async () => { root.unmount() })
+  chat.remove()
+  container.remove()
+})
+
+test('the window waits for the config before pinning the model', async () => {
+  const registrations = harness()
+  const overlay = registrations.find(item => item.options.id === 'explainer.window')
+  const requests = []
+  dom.window.fetch = async (url, init) => {
+    if (String(url).includes('/explainer/config')) {
+      await new Promise(resolve => setTimeout(resolve, 300))
+      return new Response(JSON.stringify({ ok: true, config: {
+        enabled: true, showMeta: true, selectionMaxChars: 6000, inheritContext: true,
+        presets: [], rightClick: true, autoAnswer: true,
+        defaultModel: { provider: 'newapi-gemini', model: 'gemini-3.8-flash' },
+        pinnedModel: { provider: 'newapi-gemini', model: 'gemini-3.8-flash' },
+        modelGroups: [
+          { id: 'newapi', name: '公司', models: [{ id: 'deepseek-flash', name: 'deepseek-flash' }] },
+          { id: 'newapi-gemini', name: 'Gemini', models: [{ id: 'gemini-3.8-flash', name: 'gemini-3.8-flash' }] },
+        ],
+      } }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+    requests.push(JSON.parse(init.body))
+    return sse([
+      'event: meta\ndata: {"provider":"newapi-gemini","model":"gemini-3.8-flash","effort":"low"}\n\n',
+      'event: delta\ndata: {"text":"好"}\n\n',
+      'event: done\ndata: {"ms":1}\n\n',
+    ])
+  }
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  const useSessions = (select) => select({ byId: { s1: { retainedBy: { mainView: 1 } } } })
+  await act(async () => { root.render(React.createElement(overlay.component, { useSessions })) })
+  const chat = document.createElement('div')
+  chat.setAttribute('data-slot', 'conversation.chat.flow')
+  chat.textContent = 'The cost of a branch is mostly in merging.'
+  document.body.appendChild(chat)
+  await act(async () => {
+    const range = document.createRange()
+    range.selectNodeContents(chat)
+    const selection = dom.window.getSelection()
+    selection.removeAllRanges()
+    selection.addRange(range)
+    chat.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+  })
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 950)) })
+  assert.equal(requests.length, 1)
+  assert.equal(requests[0].provider, 'newapi-gemini', 'the pin wins over the inherited main model')
+  assert.equal(requests[0].model, 'gemini-3.8-flash')
   await act(async () => { root.unmount() })
   chat.remove()
   container.remove()

@@ -101,6 +101,7 @@ test('the config route reports a pinned default model as the window default', as
   await routes.get('/explainer/config').handler(fakeReq({}, 'GET'), res)
   const payload = JSON.parse(res.body())
   assert.deepEqual(payload.config.defaultModel, { provider: 'p', model: 'm' })
+  assert.deepEqual(payload.config.pinnedModel, { provider: 'p', model: 'm' })
 })
 
 test('the models route lists the main chat catalog and the default route', async () => {

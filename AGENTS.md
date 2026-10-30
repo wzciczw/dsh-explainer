@@ -62,6 +62,8 @@ Do **not** use it for deep research, multi-step edits, or anything that needs to
 
 ## Config (most useful knobs)
 
+The plugin row's `defaultModel` is a pin: when it is set and the main chat still lists it, every quick-ask uses it even if the main window is on another model. Without a pin, the window follows the main window's live selection.
+
 ```yaml
 - id: explainer
   config:

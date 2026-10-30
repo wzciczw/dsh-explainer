@@ -153,7 +153,9 @@ export function configHandler(deps: RouteDeps) {
       ok: true,
       config: {
         ...config,
-        defaultModel: catalog.defaultRoute ?? deps.config.defaultModel ?? null,
+        // The plugin pin is the window default; the deployment default is only
+        // the fallback when no pin is configured.
+        defaultModel: deps.config.defaultModel ?? catalog.defaultRoute ?? null,
         pinnedModel: deps.config.defaultModel ?? null,
         modelGroups: catalog.groups,
       },
@@ -182,7 +184,7 @@ export function modelsHandler(deps: RouteDeps) {
       const catalog = await deps.catalog()
       sendJson(res, 200, {
         ok: true,
-        defaultModel: catalog.defaultRoute ?? deps.config.defaultModel ?? null,
+        defaultModel: deps.config.defaultModel ?? catalog.defaultRoute ?? null,
         groups: catalog.groups,
       })
     } catch (error) {

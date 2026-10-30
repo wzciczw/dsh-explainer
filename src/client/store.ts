@@ -250,8 +250,17 @@ export class ExplainerStore {
 
   async send(): Promise<void> {
     this.clearAuto()
-    const card = this.snap.card
+    let card = this.snap.card
     if (card === null || card.phase === 'streaming') return
+    // The pinned model lives in the config response. The auto-answer timer can
+    // fire before that request settles, so wait for it once: otherwise the
+    // window silently sends with the main chat's model instead of the pin.
+    if (this.snap.config === null) {
+      await this.ensureConfig()
+      const current = this.snap.card
+      if (current === null || current.threadId !== card.threadId || current.phase !== 'input') return
+      card = current
+    }
     const config = this.snap.config ?? DEFAULTS
     const draft = card.draft.trim()
     const first = card.messages.length === 0
@@ -374,10 +383,12 @@ export class ExplainerStore {
    */
   private preferredRoute(): ModelRoute | null {
     const config = this.snap.config
-    const pinned = config?.defaultModel ?? null
+    // `pinnedModel` is the plugin row's explicit pin; `defaultModel` is the
+    // effective window default and may already be the deployment fallback.
+    const pinned = config?.pinnedModel ?? null
     if (pinned !== null && (config === null || listedRoute(config, pinned))) return pinned
     if (this.snap.sessionModel !== null) return this.snap.sessionModel
-    return this.snap.defaultRoute
+    return config?.defaultModel ?? this.snap.defaultRoute
   }
 
   /**
@@ -388,16 +399,15 @@ export class ExplainerStore {
    */
   effectiveRoute(): ModelRoute | null {
     const config = this.snap.config
-    const pinned = config?.defaultModel ?? null
+    const pinned = config?.pinnedModel ?? null
     if (pinned !== null && (config === null || listedRoute(config, pinned))) return pinned
-    return this.snap.sessionModel ?? this.snap.defaultRoute ?? pinned
+    return this.snap.sessionModel ?? config?.defaultModel ?? this.snap.defaultRoute
   }
 
   /** True when the window is pinned to a model instead of following the main chat. */
   isPinnedModel(): boolean {
     const config = this.snap.config
-    if ((config?.pinnedModel ?? null) !== null) return true
-    const pinned = config?.defaultModel ?? null
+    const pinned = config?.pinnedModel ?? null
     return pinned !== null && (config === null || listedRoute(config, pinned))
   }
 
