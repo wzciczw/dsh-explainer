@@ -13,7 +13,7 @@ import type {
 /** Client fallback when the config route has not answered yet. */
 const DEFAULTS: PublicConfig = {
   enabled: true,
-  maxTokens: 800,
+  maxTokens: 4096,
   temperature: 0.3,
   selectionMaxChars: 6_000,
   contextMaxChars: 8_000,
@@ -132,7 +132,9 @@ export class ExplainerStore {
   }
 
   showHint(text: string, rect: RectLike, filePath?: string, sessionId?: string): void {
-    if (this.disabled() || this.snap.card !== null) return
+    // A card may stay open while the user selects another passage; the new
+    // pill must still appear so opening it can replace the old card.
+    if (this.disabled()) return
     const current = this.snap.hint
     if (
       current !== null
@@ -178,6 +180,9 @@ export class ExplainerStore {
   openSelection(anchor: RectLike, text: string, filePath?: string, sessionId?: string): void {
     if (this.disabled()) return
     this.clearAuto()
+    // A new selection starts a new thread: abort the previous answer and drop
+    // its pending buffer so no late delta/meta can land in the new card.
+    this.stop(true)
     const config = this.snap.config ?? DEFAULTS
     const quote = text.slice(0, config.selectionMaxChars)
     const card = { ...this.freshCard('selection', anchor, quote, config.inheritContext, filePath), sessionId }
@@ -204,6 +209,7 @@ export class ExplainerStore {
   openQuick(anchor: RectLike): void {
     if (this.disabled()) return
     this.clearAuto()
+    this.stop(true)
     const config = this.snap.config ?? DEFAULTS
     this.emit({
       hint: null,
@@ -400,6 +406,12 @@ export class ExplainerStore {
     // Invalidate the in-flight send: its late deltas must not land in a
     // thread the user already replaced or closed.
     this.generation += 1
+    this.pending = ''
+    this.pendingTurnId = ''
+    if (this.raf !== 0) {
+      cancelAnimationFrame(this.raf)
+      this.raf = 0
+    }
   }
 
   /**

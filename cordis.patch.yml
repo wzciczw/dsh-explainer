@@ -8,7 +8,7 @@
     - id: explainer
       name: "dsh-explainer"
       config:
-        maxTokens: 800
+        maxTokens: 4096
         temperature: 0.3
         inheritContext: true
         autoAnswer: true

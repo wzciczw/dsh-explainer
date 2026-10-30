@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- Default `maxTokens` is now 4096 (was 800); mandatory-thinking models keep the 4096/8192 floor. The desktop profile pins `defaultModel: newapi/deepseek-flash` and `maxTokens: 4096`.
+
 ### Added
 
 - Time-sensitive questions can use the host web-search seam (`ctx.web.search`): up to four cited sources are injected as a bounded `[联网检索]` block, and the card shows `联网 N 源`. Without a search provider the answer proceeds without it.
@@ -12,6 +16,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- Opening a new selection aborts the previous answer, drops its pending text and starts an empty card; the selection pill also appears while a card is open so the new selection can replace it.
 - Mandatory-thinking models (Gemini/Claude profiles without an `off` effort) no longer spend the whole 800-token answer budget on reasoning: the engine raises their output budget to 4096 (8192 for high/xhigh/max), leaving room for visible text.
 - A model provider that ignores abort no longer pins a concurrency slot: the engine races each stream against `timeoutMs` and releases it; the browser aborts a request that receives no first frame after 45s.
 - The pinned `defaultModel` now wins over the inherited main-window route: the config response exposes `pinnedModel`, the browser no longer mistakes the deployment default for a pin, and a send waits for the config before choosing a model.

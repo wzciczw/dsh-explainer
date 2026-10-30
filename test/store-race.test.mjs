@@ -90,3 +90,39 @@ test('a composer quick ask inherits the main conversation snapshot', async () =>
   assert.equal(body.inheritContext, true, 'quick-ask is a sub-session, not a stateless prompt')
   assert.equal(body.question, '刚才那个方案再展开')
 })
+
+test('opening a new selection clears the previous answer and pending text', async () => {
+  const stream = controlledStream()
+  installFetch(stream)
+  const store = new ExplainerStore()
+  store.openSelection(rect, '第一段')
+  store.setDraft('问一')
+  const sending = store.send()
+  stream.push('旧答案')
+  await settle()
+  assert.equal(store.getSnapshot().card.messages.at(-1).text, '旧答案')
+
+  store.openSelection(rect, '第二段')
+  const card = store.getSnapshot().card
+  assert.equal(card.quote, '第二段')
+  assert.equal(card.messages.length, 0, 'the new selection starts an empty thread')
+  assert.equal(card.phase, 'input')
+  stream.push('迟到')
+  await settle()
+  assert.equal(store.getSnapshot().card.messages.length, 0, 'late deltas stay out of the new card')
+  stream.done()
+  await sending.catch(() => {})
+})
+
+test('a new pill appears while a card is open and replaces it', async () => {
+  installFetch(controlledStream())
+  const store = new ExplainerStore()
+  store.openSelection(rect, '第一段')
+  store.showHint('第二段', rect)
+  assert.equal(store.getSnapshot().hint?.text, '第二段')
+  store.openSelection(rect, '第二段')
+  const card = store.getSnapshot().card
+  assert.equal(card.quote, '第二段')
+  assert.equal(card.messages.length, 0)
+  assert.equal(store.getSnapshot().hint, null)
+})

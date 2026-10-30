@@ -43,7 +43,7 @@ Do **not** use it for deep research, multi-step edits, or anything that needs to
 | --- | --- |
 | Rendered-HTML selection bridge | Select inside the **actual rendered report**, not just its source. The frame stays opaque (`allow-scripts`, no `allow-same-origin`); the page never reaches the app. |
 | Auto-answer by selection shape | No extra click or Enter for the common cases; typing cancels. |
-| One-shot, lowest effort | One `prepareCall` + one streamed completion; default `maxTokens: 800`; 3-sentence answer shape. |
+| One-shot, lowest effort | One `prepareCall` + one streamed completion; default `maxTokens: 4096`; 3-sentence answer shape. |
 | Read-only isolation | The main session is snapshotted once; the plugin never appends to it. |
 | Right-sidebar context | Whole-file context, workspace-contained; HTML stripped to text. |
 | Model follows the main window | Same model by default; optional per-deployment pin. |
@@ -72,7 +72,7 @@ The plugin row's `defaultModel` is a pin: when it is set and the main chat still
     defaultModel: provider/model  # pin a model; omit to follow the main window
     inheritContext: true      # read-only snapshot for both selection and composer quick-ask
     webSearch: true           # time-sensitive retrieval through ctx.web.search
-    maxTokens: 800
+    maxTokens: 4096
     fileAccess: true          # whole-file context for right-sidebar selections
 ```
 
