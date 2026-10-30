@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- Interactive HTML diagrams that start panning on `pointerdown` now support text selection: the renderer adds a 「划词模式」 toggle (or hold Alt/Option) that stops the page handler while leaving native selection intact.
+
 ### Changed
 
 - Composer quick-ask (`Ctrl/Cmd+Shift+K`) now inherits the main conversation snapshot like a sub-session, instead of running stateless. `inheritContext: false` still disables it for both entry points.

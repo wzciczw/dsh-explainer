@@ -29,6 +29,13 @@ test('the frame fills the sidebar body instead of the 300x150 default', () => {
   assert.match(styles, /\.dx-html-frame\{[^}]*border:0/)
 })
 
+test('interactive pages get a selection-mode toggle', () => {
+  assert.match(preview, /dx-html-mode/)
+  assert.match(preview, /dsh-explainer\/selection-mode/)
+  assert.match(styles, /\.dx-html-host\{/)
+  assert.match(styles, /\.dx-html-mode\{/)
+})
+
 test('both right-sidebar surfaces are wired', () => {
   assert.match(registration, /documentPreviews/)
   assert.match(registration, /registerFileViewer/)

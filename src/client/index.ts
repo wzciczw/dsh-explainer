@@ -70,7 +70,7 @@ export function apply(ctx: ClientContext): void {
 
   // Optional HTML preview entry points: registered last, so a missing service
   // never affects the core seats above.
-  installHtmlPreviews(ctx, store)
+  installHtmlPreviews(ctx, store, t)
 
   ctx.slots.inject('conversation.input.right', () => ctx.slots.register(
     { name: 'conversation.input.right', id: 'explainer.quick', order: 260, label: () => t('quickAsk') },

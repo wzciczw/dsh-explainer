@@ -87,6 +87,7 @@ dsh plugin --profile <profile> add dsh-explainer
 - 文件按原样渲染：内联样式、`<script>`、data 图片、页面自己的交互都保留；
 - iframe 占满侧边栏（不再是默认的 300×150），仍是**不透明 sandbox**（`allow-scripts`，没有 `allow-same-origin`），页面拿不到应用 DOM、Cookie 或会话；
 - 页面里划词 → 出现「✦ 问这段」；右键直接开卡片；选区只在本帧内读取。
+- 交互式图（可缩放/拖动画布）会拦截 pointerdown，导致拖不出选区：点预览左下角「划词模式」，或按住 `Alt/Option` 拖动即可；模式内页面的拖拽/缩放暂停，退出后恢复。
 
 桥接脚本只做一件事：把当前选区（文本 + 位置）发给父页面。父页面只接受**来自这一帧**、通道匹配、序号递增、频率受限、字段与坐标都在范围内的消息。桥接消息本身不会触发模型；卡片打开后由卡片自己的默认回答自动发送（输入即取消，或配置 `autoAnswer: false` 关闭）。
 
@@ -266,7 +267,8 @@ HTML 文件现在默认由本插件的 renderer 打开：原始 HTML 放进 Blob
 
 真实浏览器验证：
 - `node e2e/preview-frame-boundary.mjs`：同源 iframe 划词、opaque 拒绝、伪造消息无效；
-- `node e2e/html-render-bridge.mjs`：直接加载用户的 `report.html`，确认标题渲染、iframe 不透明、划词产生 hint、右键能打开。
+- `node e2e/html-render-bridge.mjs`：直接加载用户的 `report.html`，确认标题渲染、iframe 不透明、划词产生 hint、右键能打开；
+- `node e2e/interactive-selection.mjs`：交互图在页面 pointerdown 阻止默认行为时，划词模式/Alt 仍能产生原生选区。
 
 
 ## 已知限制

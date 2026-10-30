@@ -30,7 +30,7 @@ function decode(content: unknown): string {
  * shipped preview: a file whose scripts need the host's resource packing can
  * be switched back, and nothing is removed.
  */
-export function installHtmlPreviews(ctx: PreviewContext, store: ExplainerStore): void {
+export function installHtmlPreviews(ctx: PreviewContext, store: ExplainerStore, t: (key: string) => string): void {
   // 1. Native document preview (right sidebar).
   ctx.inject?.(['documentPreviews'], scope => {
     const registry = scope.get?.('documentPreviews') as any
@@ -53,7 +53,7 @@ export function installHtmlPreviews(ctx: PreviewContext, store: ExplainerStore):
       const source = decode(props.content)
       if (typeof path !== 'string' || path === '') return <p>正在读取文件路径…</p>
       return <HtmlSelectionPreview key={props.resourceAddress} source={source} path={path}
-        sessionId={props.sessionId} store={store} />
+        sessionId={props.sessionId} store={store} t={t} />
     }))
   })
 
@@ -66,7 +66,7 @@ export function installHtmlPreviews(ctx: PreviewContext, store: ExplainerStore):
     function BetterHtml(props: any): React.ReactElement {
       const source = typeof props.content === 'string' ? props.content : ''
       return <HtmlSelectionPreview key={props.path} source={source} path={props.path}
-        sessionId={props.scope?.sessionId ?? props.sessionId} store={store} />
+        sessionId={props.scope?.sessionId ?? props.sessionId} store={store} t={t} />
     }
     scope.effect(() => service.registerFileViewer({
       id: 'explainer-html', title: () => 'HTML（划词）',

@@ -15,6 +15,14 @@ test('the file keeps its own rendering and gets exactly one bridge script', () =
   assert.ok(html.indexOf('window.x = 1') < html.indexOf('dsh-explainer/html-selection/v1'), 'the bridge runs after the page')
 })
 
+test('the bridge carries a selection mode that suspends page panning', () => {
+  const html = buildBridgeDocument('<p>交互图</p>', 'b'.repeat(32))
+  assert.match(html, /dsh-explainer\/selection-mode/)
+  assert.match(html, /data-explainer-selection-mode/)
+  assert.match(html, /event\.altKey/)
+  assert.match(html, /stopPropagation/)
+})
+
 test('a document without a body still gets the bridge', () => {
   const html = buildBridgeDocument('<p>hi</p>', 'b'.repeat(32))
   assert.match(html, /<p>hi<\/p>/)

@@ -12,6 +12,7 @@ select text anywhere in the DSH Web GUI, and get a fast, isolated answer in plac
 - **Follows the main window model** by default; a deployment can pin any model the main chat offers (`defaultModel`).
 - **Auto-answer**: English prose → translate first; a term/concept → explain it; an English question → answer it. Typing cancels the automatic turn.
 - **Right-sidebar file context**: reads the selected file whole (read-only, workspace-contained); HTML is reduced to visible text before it reaches the model.
+- **Interactive diagrams**: a selection-mode toggle (or holding Alt/Option) suspends the page's pan/zoom pointer handler so native text selection works; the mode is scoped to one preview.
 - **Composer quick-ask is a sub-session**: `Ctrl/Cmd+Shift+K` inherits the same read-only conversation snapshot as a selection; follow-ups stay in that isolated thread.
 
 ## Install
