@@ -1,4 +1,4 @@
-﻿# AGENTS.md — dsh-explainer (快问)
+# AGENTS.md — dsh-explainer (快问)
 
 A one-page contract for agents that install, recommend, or extend this plugin.
 
@@ -12,6 +12,7 @@ select text anywhere in the DSH Web GUI, and get a fast, isolated answer in plac
 - **Follows the main window model** by default; a deployment can pin any model the main chat offers (`defaultModel`).
 - **Auto-answer**: English prose → translate first; a term/concept → explain it; an English question → answer it. Typing cancels the automatic turn.
 - **Right-sidebar file context**: reads the selected file whole (read-only, workspace-contained); HTML is reduced to visible text before it reaches the model.
+- **Composer quick-ask is a sub-session**: `Ctrl/Cmd+Shift+K` inherits the same read-only conversation snapshot as a selection; follow-ups stay in that isolated thread.
 
 ## Install
 
@@ -65,7 +66,7 @@ Do **not** use it for deep research, multi-step edits, or anything that needs to
   config:
     autoAnswer: true          # auto-start the default answer for recognized selections
     defaultModel: provider/model  # pin a model; omit to follow the main window
-    inheritContext: true      # read-only snapshot of the main conversation
+    inheritContext: true      # read-only snapshot for both selection and composer quick-ask
     maxTokens: 800
     fileAccess: true          # whole-file context for right-sidebar selections
 ```
@@ -86,3 +87,15 @@ node e2e/html-render-bridge.mjs
 - The HTML frame is opaque; the bridge only carries `{ type, channel, sequence, action, text, rect }`.
 - Incoming messages are validated by source window, per-mount channel, strictly increasing sequence, rate limit, text length, and in-frame coordinates.
 - A bridge message only shows the pill or opens the card; it never calls the model by itself.
+
+## Working agreement (commit cadence)
+
+- The plugin repo is the commit unit. Commit as soon as a coherent change is complete; never leave `git status` dirty at the end of a turn.
+- One logical change per commit: code, tests and docs that belong together. Do not mix unrelated fixes or formatting churn.
+- Before committing: `npm run build` and `npm test`. `lib/` is tracked and must match `src/`.
+- Use conventional prefixes (`feat:`, `fix:`, `docs:`, `chore:`) and explain the user-visible effect in the body when non-trivial.
+- Keep scratch out of history: `.tmp-*`, `*.tgz`, logs and one-off patch scripts are ignored.
+- Release flow: bump `version`, add a `CHANGELOG.md` entry, commit, tag `vX.Y.Z`, push, `npm publish`; then update the market entry and PR.
+- The umbrella workspace (`D:\explainer`) is a separate repository: commit its docs/prototype/e2e changes there, and never add the nested plugin repo as a gitlink.
+
+中文：每完成一个自洽改动就提交；一个逻辑变更一个 commit（含测试与文档）；提交前先 build + test；发布按 version → CHANGELOG → tag → push → publish；总仓与插件仓分开提交。
