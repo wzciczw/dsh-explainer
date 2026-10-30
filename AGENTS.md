@@ -88,6 +88,7 @@ node e2e/html-render-bridge.mjs
 ## Safety model
 
 - All routes fail closed without `connection.requestRejection`.
+- Each ask has a hard deadline (`timeoutMs`, 30s default); a provider that ignores abort is raced and its concurrency slot is released. The browser also aborts a request with no first frame after 45s.
 - File reads are read-only and confined to the session workspace.
 - The HTML frame is opaque; the bridge only carries `{ type, channel, sequence, action, text, rect }`.
 - Incoming messages are validated by source window, per-mount channel, strictly increasing sequence, rate limit, text length, and in-frame coordinates.

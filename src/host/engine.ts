@@ -209,18 +209,39 @@ export class AskEngine {
       let answer = ''
       let finish: { kind: string; failure?: { message?: string; code?: string } } | undefined
       let usage: { inputTokens?: number; outputTokens?: number } | undefined
-      for await (const chunk of call.stream(options)) {
-        const kind = (chunk as StreamChunkLike).type
-        if (kind === 'text-delta') {
-          const text = (chunk as { text?: string }).text ?? ''
-          if (text !== '') {
-            answer += text
-            onDelta(text)
+      let done = false
+      const iterator = call.stream(options)[Symbol.asyncIterator]()
+      let deadlineTimer: ReturnType<typeof setTimeout> | undefined
+      // The adapter normally honors the request signal, but a provider that
+      // ignores abort must not pin a concurrency slot forever. Race the
+      // iterator against a hard deadline and close it on the way out.
+      const deadline = new Promise<never>((_, reject) => {
+        deadlineTimer = setTimeout(() => reject(new AskError('timeout', 'the answer timed out', 504)), this.config.timeoutMs)
+        deadlineTimer.unref?.()
+      })
+      try {
+        while (true) {
+          const next = await Promise.race([iterator.next(), deadline])
+          if (next.done === true) { done = true; break }
+          const chunk = next.value
+          const kind = (chunk as StreamChunkLike).type
+          if (kind === 'text-delta') {
+            const text = (chunk as { text?: string }).text ?? ''
+            if (text !== '') {
+              answer += text
+              onDelta(text)
+            }
+          } else if (kind === 'finish') {
+            finish = (chunk as { reason?: { kind: string; failure?: { message?: string; code?: string } } }).reason
+          } else if (kind === 'usage') {
+            usage = (chunk as { usage?: { inputTokens?: number; outputTokens?: number } }).usage
           }
-        } else if (kind === 'finish') {
-          finish = (chunk as { reason?: { kind: string; failure?: { message?: string; code?: string } } }).reason
-        } else if (kind === 'usage') {
-          usage = (chunk as { usage?: { inputTokens?: number; outputTokens?: number } }).usage
+        }
+      } finally {
+        if (deadlineTimer !== undefined) clearTimeout(deadlineTimer)
+        if (!done) {
+          // Do not await: an adapter that ignores abort can also stall return().
+          try { void iterator.return?.() } catch { /* provider already closed */ }
         }
       }
 
@@ -275,14 +296,25 @@ export class AskEngine {
     const timer = setTimeout(() => controller.abort(), 6_000)
     timer.unref?.()
     const combined = typeof AbortSignal.any === 'function' ? AbortSignal.any([signal, controller.signal]) : signal
+    let timeoutTimer: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<never>((_, reject) => {
+      timeoutTimer = setTimeout(() => reject(new Error('web search timeout')), 6_000)
+      timeoutTimer.unref?.()
+    })
     try {
-      const result = await web.search({ query, maxResults: this.config.webSearchMaxResults }, combined)
+      // Race the provider too: a provider that ignores abort must not pin the
+      // request before the model call even starts.
+      const result = await Promise.race([
+        web.search({ query, maxResults: this.config.webSearchMaxResults }, combined),
+        timeout,
+      ])
       const text = formatWeb(result, query)
       return { text, count: text === '' ? 0 : (result.sources?.length ?? 0) }
     } catch {
       return { text: '', count: 0 }
     } finally {
       clearTimeout(timer)
+      if (timeoutTimer !== undefined) clearTimeout(timeoutTimer)
     }
   }
 

@@ -73,6 +73,7 @@ export class ExplainerStore {
   private activeGeneration = 0
   private configTask: Promise<void> | null = null
   private autoTimer = 0
+  private watchdog = 0
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener)
@@ -93,6 +94,26 @@ export class ExplainerStore {
     if (card === null) return
     const next = fn(card)
     if (next !== card) this.emit({ card: next })
+  }
+
+  /** Cancel the first-frame watchdog; any SSE frame proves the stream is alive. */
+  private clearWatchdog(): void {
+    if (this.watchdog !== 0) {
+      clearTimeout(this.watchdog)
+      this.watchdog = 0
+    }
+  }
+
+  /** Fail a request whose server never sent a frame (opaque provider hangs, dead socket). */
+  private armWatchdog(controller: AbortController): void {
+    this.clearWatchdog()
+    this.watchdog = setTimeout(() => {
+      this.watchdog = 0
+      if (this.abort !== controller) return
+      this.abortReason = 'timeout'
+      controller.abort()
+      if (this.abort === controller) this.abort = null
+    }, 45_000)
   }
 
   /** Cancel a pending auto answer; the user is steering the card. */
@@ -298,6 +319,7 @@ export class ExplainerStore {
     const controller = new AbortController()
     this.abort = controller
     this.abortReason = null
+    this.armWatchdog(controller)
 
     const preferred = this.preferredRoute()
     const body = {
@@ -353,14 +375,19 @@ export class ExplainerStore {
       const message = aborted
         ? '回答超时，请重试'
         : error instanceof Error ? error.message : String(error)
-      this.failStreaming(message, error instanceof StreamError ? error.code : 'internal')
+      const code = aborted && this.abortReason === 'timeout'
+        ? 'timeout'
+        : (error instanceof StreamError ? error.code : 'internal')
+      this.failStreaming(message, code)
     } finally {
+      this.clearWatchdog()
       if (this.abort === controller) this.abort = null
     }
   }
 
   /** Stop the in-flight answer, keeping whatever text already arrived. */
   stop(silent = false): void {
+    this.clearWatchdog()
     if (!silent) {
       this.flushPending()
       this.finishStreaming()
@@ -450,6 +477,7 @@ export class ExplainerStore {
     } catch {
       return
     }
+    this.clearWatchdog()
     if (event === 'delta') {
       const text = typeof payload.text === 'string' ? payload.text : ''
       if (text !== '') {
@@ -466,6 +494,7 @@ export class ExplainerStore {
           model: typeof payload.model === 'string' ? payload.model : undefined,
           effort: typeof payload.effort === 'string' ? payload.effort : undefined,
           contextChars: typeof payload.contextChars === 'number' ? payload.contextChars : undefined,
+          web: typeof payload.web === 'number' ? payload.web : undefined,
         } satisfies Meta,
       }))
       return

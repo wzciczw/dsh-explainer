@@ -402,3 +402,29 @@ test('an ordinary explanation does not search the web', async () => {
   await engine.run({ threadId: 'web-2', mode: 'quick', question: '解释一下分支为什么便宜' }, new AbortController().signal, () => {})
   assert.equal(web.requests.length, 0)
 })
+
+test('a hanging model stream times out and releases the concurrency slot', async () => {
+  const sessions = { get: () => ({ header: { cwd: '/' }, snapshotEvents: () => [] }) }
+  const ctx = { get: key => (key === 'sessions' ? sessions : undefined), logger: {} }
+  const llm = {
+    prepareCall: async config => ({
+      config,
+      stream: async function* () {
+        await new Promise(() => {})
+        yield { type: 'text-delta', index: 0, text: 'never' }
+      },
+    }),
+    listProviders: () => [{ id: 'p' }],
+    listModels: async () => [{ id: 'm' }],
+  }
+  const config = normalizeConfig({ inheritContext: false })
+  config.timeoutMs = 60
+  const engine = new AskEngine(ctx, llm, new ThreadStore(10, 60_000), config)
+  const started = Date.now()
+  await assert.rejects(
+    engine.run({ threadId: 'hang-1', mode: 'quick', question: 'hi' }, new AbortController().signal, () => {}),
+    error => error.code === 'timeout',
+  )
+  assert.ok(Date.now() - started < 1000, 'the deadline releases the slot promptly')
+  assert.equal(engine.inFlight(), 0)
+})
