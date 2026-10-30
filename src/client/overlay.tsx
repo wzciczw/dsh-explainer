@@ -13,7 +13,8 @@ type UseSessions = (select: (state: {
   byId: Record<string, { retainedBy?: { mainView?: number } }>
 }) => unknown) => unknown
 
-const WIDTH = 440
+const WIDTH = 520
+const HEIGHT = 560
 const MARGIN = 12
 
 /** Human labels for the adapter-owned reasoning effort ids. */
@@ -29,6 +30,11 @@ const EFFORT_LABELS: Record<string, string> = {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), Math.max(min, max))
+}
+
+/** One fixed window size: answers scroll inside instead of resizing the card. */
+function cardHeight(viewportHeight: number): number {
+  return Math.min(HEIGHT, Math.max(280, viewportHeight - MARGIN * 2))
 }
 
 function friendlyError(turn: Turn, t: Translate): string {
@@ -47,21 +53,29 @@ function place(card: CardState): React.CSSProperties {
   const viewportWidth = window.innerWidth
   const viewportHeight = window.innerHeight
   const width = Math.min(WIDTH, viewportWidth - MARGIN * 2)
+  const height = cardHeight(viewportHeight)
+  const maxLeft = Math.max(MARGIN, viewportWidth - width - MARGIN)
+  const maxTop = Math.max(MARGIN, viewportHeight - height - MARGIN)
   if (card.position !== null) {
-    const x = clamp(card.position.x, MARGIN, viewportWidth - width - MARGIN)
-    const y = clamp(card.position.y, MARGIN, viewportHeight - 160)
-    return { left: x, top: y, width, maxHeight: viewportHeight - y - MARGIN }
+    return {
+      left: clamp(card.position.x, MARGIN, maxLeft),
+      top: clamp(card.position.y, MARGIN, maxTop),
+      width,
+      height,
+    }
   }
   const anchor = card.anchor
   const below = anchor.bottom + 8
   const roomBelow = viewportHeight - below - MARGIN
   const roomAbove = anchor.top - 8 - MARGIN
-  const width2 = width
-  const left = clamp(anchor.left, MARGIN, viewportWidth - width2 - MARGIN)
-  if (roomBelow >= 300 || roomBelow >= roomAbove) {
-    return { left, top: Math.max(MARGIN, below), width: width2, maxHeight: Math.max(220, roomBelow) }
+  const above = anchor.top - 8 - height
+  const preferred = roomBelow >= height || roomBelow >= roomAbove ? below : above
+  return {
+    left: clamp(anchor.left, MARGIN, maxLeft),
+    top: clamp(preferred, MARGIN, maxTop),
+    width,
+    height,
   }
-  return { left, bottom: viewportHeight - anchor.top + 8, width: width2, maxHeight: Math.max(220, roomAbove) }
 }
 
 /** The floating layer: the selection pill, the quick-ask window and a toast. */
@@ -272,13 +286,6 @@ function Card(props: {
     if (nearBottom) element.scrollTop = element.scrollHeight
   }, [card.messages.length, lastText])
 
-  React.useEffect(() => {
-    const element = inputRef.current
-    if (element === null) return
-    element.style.height = 'auto'
-    element.style.height = `${Math.min(132, Math.max(36, element.scrollHeight))}px`
-  }, [card.draft])
-
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
     const target = event.target as HTMLElement
     if (target.closest('button') !== null) return
@@ -293,14 +300,14 @@ function Card(props: {
     const state = drag.current
     if (state === null) return
     const width = Math.min(WIDTH, window.innerWidth - MARGIN * 2)
+    const height = cardHeight(window.innerHeight)
     const x = clamp(state.left + event.clientX - state.x, MARGIN, window.innerWidth - width - MARGIN)
-    const y = clamp(state.top + event.clientY - state.y, MARGIN, window.innerHeight - 160)
+    const y = clamp(state.top + event.clientY - state.y, MARGIN, window.innerHeight - height - MARGIN)
     store.moveTo(x, y)
   }
   const onPointerUp = (): void => { drag.current = null }
 
   const streaming = card.phase === 'streaming'
-  const canSend = streaming || card.draft.trim() !== '' || (card.messages.length === 0 && card.mode === 'selection')
   const placeholder = card.messages.length === 0
     ? (card.mode === 'selection'
         ? (card.filePath !== undefined && card.quote === ''
@@ -345,6 +352,9 @@ function Card(props: {
           >{route.model}</span>
         )}
         <span className="dx-grow" />
+        {showMeta && (card.meta !== null || card.phase === 'answer') && (
+          <MetaLine card={card} t={t} />
+        )}
         <button
           type="button"
           className="dx-icon"
@@ -396,7 +406,7 @@ function Card(props: {
         <textarea
           ref={inputRef}
           className="dx-input"
-          rows={1}
+          rows={2}
           value={card.draft}
           placeholder={placeholder}
           spellCheck={false}
@@ -409,20 +419,7 @@ function Card(props: {
             }
           }}
         />
-        <button
-          type="button"
-          className="dx-send"
-          data-mode={streaming ? 'stop' : undefined}
-          title={streaming ? t('stop') : t('send')}
-          aria-label={streaming ? t('stop') : t('send')}
-          disabled={!canSend}
-          onClick={() => { if (streaming) store.stop(); else void store.send() }}
-        >{streaming ? '■' : '↑'}</button>
       </div>
-
-      {showMeta && (card.meta !== null || card.phase === 'answer') && (
-        <MetaLine card={card} t={t} />
-      )}
     </div>
   )
 }
@@ -513,11 +510,10 @@ const TurnView = React.memo(function TurnView(props: {
   )
 })
 
-/** The small grey line under the window: route, effort, latency, context size. */
+/** The small grey line in the title bar: effort, latency, context size, sources. */
 function MetaLine({ card, t }: { card: CardState; t: Translate }): React.ReactElement | null {
   const meta = card.meta
   const parts: string[] = []
-  if (meta?.model !== undefined && meta.model !== '') parts.push(meta.model)
   if (meta?.effort !== undefined && meta.effort !== '') {
     const label = EFFORT_LABELS[meta.effort]
     parts.push(label === undefined ? meta.effort : t(label))

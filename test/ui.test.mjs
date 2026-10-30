@@ -62,6 +62,10 @@ function setTextarea(element, value) {
   element.dispatchEvent(new dom.window.Event('input', { bubbles: true }))
 }
 
+function pressEnter(element) {
+  element.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+}
+
 function sse(frames) {
   const encoder = new TextEncoder()
   return new Response(new ReadableStream({
@@ -137,17 +141,26 @@ test('a pinned default model labels the window and leads every request', async (
   assert.equal(badge.textContent.trim(), 'gemini-3.8-flash')
   assert.match(badge.getAttribute('title'), /pinnedModel/)
 
+  // One fixed window size: the transcript scrolls inside instead of resizing.
+  assert.equal(card.style.height, '560px')
+  assert.equal(card.style.width, '520px')
+  assert.equal(card.querySelector('.dx-input').getAttribute('rows'), '2', 'the composer is a two-line box')
+  assert.equal(card.querySelector('.dx-send'), null, 'no send/stop arrow button')
+  const css = document.querySelector('style[data-dsh-explainer]').textContent
+  assert.match(css, /\.dx-body\{[^}]*overflow-y:auto/, 'long answers scroll inside the transcript')
+
   await act(async () => {
     setTextarea(card.querySelector('.dx-input'), '这是什么')
-    card.querySelector('.dx-send').click()
+    pressEnter(card.querySelector('.dx-input'))
     await new Promise(resolve => setTimeout(resolve, 30))
   })
   assert.equal(requests.length, 1)
   assert.equal(requests[0].provider, 'newapi-gemini')
   assert.equal(requests[0].model, 'gemini-3.8-flash')
 
-  const meta = container.querySelector('.dx-meta')
-  assert.match(meta.textContent, /gemini-3\.8-flash/)
+  const meta = container.querySelector('.dx-head .dx-meta')
+  assert.ok(meta !== null, 'the meta line moved into the title bar')
+  assert.match(meta.textContent, /effortLow/)
 
   await act(async () => { root.unmount() })
   container.remove()
@@ -211,7 +224,7 @@ test('a pinned model the catalog no longer lists falls back to the main chat mod
 
   await act(async () => {
     setTextarea(card.querySelector('.dx-input'), '你好')
-    card.querySelector('.dx-send').click()
+    pressEnter(card.querySelector('.dx-input'))
     await new Promise(resolve => setTimeout(resolve, 30))
   })
   assert.equal(requests[0].provider, 'newapi')
@@ -284,8 +297,7 @@ test('the window opens, streams an answer and keeps follow-ups on one thread', a
   const textarea = container.querySelector('.dx-input')
   assert.ok(textarea !== null)
   await act(async () => { setTextarea(textarea, '解释一下分支成本') })
-  const send = container.querySelector('.dx-send')
-  await act(async () => { send.click(); await new Promise(resolve => setTimeout(resolve, 30)) })
+  await act(async () => { pressEnter(textarea); await new Promise(resolve => setTimeout(resolve, 30)) })
 
   const answer = container.querySelector('.dx-turn[data-role="assistant"] .dx-md')
   assert.ok(answer !== null)
@@ -301,7 +313,7 @@ test('the window opens, streams an answer and keeps follow-ups on one thread', a
   const follow = container.querySelector('.dx-input')
   await act(async () => { setTextarea(follow, '那 merge 呢') })
   await act(async () => {
-    container.querySelector('.dx-send').click()
+    pressEnter(follow)
     await new Promise(resolve => setTimeout(resolve, 30))
   })
   assert.equal(requests.length, 2)
@@ -430,7 +442,7 @@ test('a selection in the right sidebar document preview carries the file path', 
 
   await act(async () => { setTextarea(card.querySelector('.dx-input'), '这段什么意思') })
   await act(async () => {
-    card.querySelector('.dx-send').click()
+    pressEnter(card.querySelector('.dx-input'))
     await new Promise(resolve => setTimeout(resolve, 30))
   })
   assert.equal(requests.length, 1)
@@ -484,7 +496,7 @@ test('the document toolbar Ask action opens with the file and no quote', async (
   assert.equal(card.querySelector('.dx-quote'), null, 'no quote for the file-level ask')
 
   await act(async () => {
-    card.querySelector('.dx-send').click()
+    pressEnter(card.querySelector('.dx-input'))
     await new Promise(resolve => setTimeout(resolve, 30))
   })
   assert.equal(requests.length, 1)
@@ -554,7 +566,7 @@ test('a selection in the better-sidebar editor resolves its tab path', async () 
 
   await act(async () => { setTextarea(card.querySelector('.dx-input'), '这段什么意思') })
   await act(async () => {
-    card.querySelector('.dx-send').click()
+    pressEnter(card.querySelector('.dx-input'))
     await new Promise(resolve => setTimeout(resolve, 30))
   })
   assert.equal(requests.length, 1)
@@ -603,7 +615,7 @@ test('same-origin iframe selection opens the shared overlay and sends its parent
     assert.equal(card.querySelector('.dx-file').textContent.trim(), 'embedded.html')
     assert.match(card.querySelector('.dx-quote').textContent, /embedded selection/)
     assert.equal(requests.length, 0, 'opening is not an automatic provider request')
-    await act(async () => { card.querySelector('.dx-send').click(); await new Promise(resolve => setTimeout(resolve, 30)) })
+    await act(async () => { pressEnter(card.querySelector('.dx-input')); await new Promise(resolve => setTimeout(resolve, 30)) })
     assert.equal(requests[0].selection, 'embedded selection')
     assert.equal(requests[0].filePath, '/workspace/embedded.html')
   } finally {
@@ -703,7 +715,7 @@ test('typing before the automatic answer cancels it', async () => {
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 650)) })
   assert.equal(requests.length, 0, 'typing cancels the automatic answer')
   await act(async () => {
-    container.querySelector('.dx-send').click()
+    pressEnter(input)
     await new Promise(resolve => setTimeout(resolve, 30))
   })
   assert.equal(requests.length, 1)
@@ -811,7 +823,7 @@ test('a better-sidebar editor path is found from the input value', async () => {
   assert.ok(card !== null, 'the editor selection opens the window')
   assert.equal(card.querySelector('.dx-file').textContent.trim(), 'C1_research_progress_and_boundary.md')
   await act(async () => {
-    card.querySelector('.dx-send').click()
+    pressEnter(card.querySelector('.dx-input'))
     await new Promise(resolve => setTimeout(resolve, 30))
   })
   assert.equal(requests.length, 1)
