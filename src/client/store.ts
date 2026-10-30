@@ -183,9 +183,12 @@ export class ExplainerStore {
   openQuick(anchor: RectLike): void {
     if (this.disabled()) return
     this.clearAuto()
+    const config = this.snap.config ?? DEFAULTS
     this.emit({
       hint: null,
-      card: this.freshCard('quick', anchor, '', false),
+      // A composer quick-ask is a sub-session: it gets the same read-only
+      // snapshot as a selection card unless the deployment opts out.
+      card: this.freshCard('quick', anchor, '', config.inheritContext),
     })
     this.ensureConfig()
   }

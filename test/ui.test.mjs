@@ -291,7 +291,7 @@ test('the window opens, streams an answer and keeps follow-ups on one thread', a
   assert.match(answer.textContent, /创建便宜/)
   assert.equal(requests.length, 1)
   assert.equal(requests[0].mode, 'quick')
-  assert.equal(requests[0].inheritContext, false)
+  assert.equal(requests[0].inheritContext, true, 'composer quick-ask inherits like a sub-session')
   assert.equal(requests[0].provider, 'main-provider', 'the ask follows the main window model')
   assert.equal(requests[0].model, 'main-model')
 

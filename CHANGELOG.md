@@ -3,6 +3,12 @@
 All notable changes to `dsh-explainer` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- Composer quick-ask (`Ctrl/Cmd+Shift+K`) now inherits the main conversation snapshot like a sub-session, instead of running stateless. `inheritContext: false` still disables it for both entry points.
+
 ## [0.3.0] - 2026-10-29
 
 ### Added

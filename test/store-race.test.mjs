@@ -65,3 +65,28 @@ test('stopping and starting a new conversation ignores late deltas from the old 
   assert.equal(store.getSnapshot().card.messages.length, 0)
   assert.equal(store.getSnapshot().card.threadId.length > 0, true)
 })
+
+test('a composer quick ask inherits the main conversation snapshot', async () => {
+  const stream = controlledStream()
+  let body
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes('/explainer/config')) {
+      return new Response(JSON.stringify({ ok: true, config: {
+        enabled: true, inheritContext: true, showMeta: true, selectionMaxChars: 6000,
+        contextMaxChars: 8000, contextMaxMessages: 8, maxTurns: 3, maxTokens: 300,
+        temperature: 0.3, presets: [], rightClick: true, autoAnswer: true,
+      } }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+    body = JSON.parse(init.body)
+    return new Response(stream.body, { status: 200, headers: { 'content-type': 'text/event-stream' } })
+  }
+  const store = new ExplainerStore()
+  store.openQuick(rect)
+  store.setDraft('刚才那个方案再展开')
+  const sending = store.send()
+  stream.push('答')
+  stream.done()
+  await sending
+  assert.equal(body.inheritContext, true, 'quick-ask is a sub-session, not a stateless prompt')
+  assert.equal(body.question, '刚才那个方案再展开')
+})
