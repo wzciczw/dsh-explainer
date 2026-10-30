@@ -102,6 +102,6 @@ node e2e/html-render-bridge.mjs
 - Use conventional prefixes (`feat:`, `fix:`, `docs:`, `chore:`) and explain the user-visible effect in the body when non-trivial.
 - Keep scratch out of history: `.tmp-*`, `*.tgz`, logs and one-off patch scripts are ignored.
 - Release flow: bump `version`, add a `CHANGELOG.md` entry, commit, tag `vX.Y.Z`, push, `npm publish`; then update the market entry and PR.
-- The umbrella workspace (`D:\explainer`) is a separate repository: commit its docs/prototype/e2e changes there, and never add the nested plugin repo as a gitlink.
+- This repository is the only managed workspace; historical design notes live under `docs/`. The old umbrella workspace was retired, so there is no nested repository to commit.
 
 中文：每完成一个自洽改动就提交；一个逻辑变更一个 commit（含测试与文档）；提交前先 build + test；发布按 version → CHANGELOG → tag → push → publish；总仓与插件仓分开提交。

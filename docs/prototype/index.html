@@ -1,0 +1,789 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>快问 · 交互原型</title>
+<style>
+  :root {
+    --bg: #121418;
+    --bg-panel: #171a1f;
+    --bg-l2: rgba(255,255,255,.045);
+    --bg-hover: rgba(255,255,255,.07);
+    --border: rgba(255,255,255,.1);
+    --border-strong: rgba(255,255,255,.18);
+    --text: #e7e9ee;
+    --text-2: #a3abb8;
+    --text-3: #6f7885;
+    --accent: #4a86ff;
+    --accent-soft: rgba(74,134,255,.16);
+    --ok: #3fb950;
+    --danger: #f85149;
+    --radius: 10px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  html[data-theme="light"] {
+    --bg: #f6f7f9;
+    --bg-panel: #ffffff;
+    --bg-l2: rgba(0,0,0,.035);
+    --bg-hover: rgba(0,0,0,.055);
+    --border: rgba(0,0,0,.1);
+    --border-strong: rgba(0,0,0,.18);
+    --text: #1c1f24;
+    --text-2: #5b6472;
+    --text-3: #8a93a1;
+    --accent-soft: rgba(74,134,255,.12);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  .app { display: flex; height: 100vh; }
+  .sidebar {
+    width: 236px; flex: none;
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    padding: 12px 10px; gap: 4px;
+  }
+  .brand { display: flex; align-items: center; gap: 8px; padding: 6px 8px 14px; font-weight: 600; }
+  .brand .logo {
+    width: 22px; height: 22px; border-radius: 6px;
+    background: linear-gradient(135deg, #4a86ff, #7a5cff);
+    display: grid; place-items: center; color: #fff; font-size: 12px;
+  }
+  .side-label { font-size: 11px; color: var(--text-3); padding: 8px 8px 4px; letter-spacing: .04em; }
+  .side-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 8px; border-radius: 7px; color: var(--text-2);
+    font-size: 13px; cursor: default;
+  }
+  .side-item.active { background: var(--bg-hover); color: var(--text); }
+  .side-item .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); }
+  .side-item.active .dot { background: var(--accent); }
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .topbar {
+    height: 46px; flex: none; display: flex; align-items: center;
+    justify-content: space-between; padding: 0 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px; color: var(--text-2);
+  }
+  .topbar .title { color: var(--text); font-weight: 500; }
+  .seg { display: flex; gap: 2px; background: var(--bg-l2); border: 1px solid var(--border); border-radius: 7px; padding: 2px; }
+  .seg button {
+    font: inherit; font-size: 12px; border: 0; background: transparent; color: var(--text-2);
+    padding: 4px 10px; border-radius: 5px; cursor: pointer;
+  }
+  .seg button.on { background: var(--bg-hover); color: var(--text); }
+  .chat { flex: 1; overflow-y: auto; padding: 22px 0 8px; }
+  .thread { max-width: 760px; margin: 0 auto; padding: 0 24px; display: flex; flex-direction: column; gap: 18px; }
+  .msg { display: flex; gap: 10px; }
+  .avatar {
+    width: 24px; height: 24px; border-radius: 6px; flex: none; margin-top: 2px;
+    display: grid; place-items: center; font-size: 11px; color: #fff;
+    background: linear-gradient(135deg, #4a86ff, #7a5cff);
+  }
+  .msg.user .avatar { background: #3a3f49; }
+  .bubble { min-width: 0; line-height: 1.65; }
+  .bubble .who { font-size: 11px; color: var(--text-3); margin-bottom: 3px; }
+  .bubble p { margin: 0 0 8px; }
+  .bubble p:last-child { margin-bottom: 0; }
+  .bubble ul { margin: 6px 0; padding-left: 20px; }
+  .bubble li { margin: 2px 0; }
+  .bubble code { font-family: var(--mono); font-size: 12.5px; background: var(--bg-l2); padding: 1px 5px; border-radius: 4px; }
+  .sel-hint { color: var(--text-3); font-size: 12px; margin-top: 10px; }
+  .composer-wrap { flex: none; padding: 8px 24px 18px; }
+  .composer {
+    max-width: 760px; margin: 0 auto;
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 10px 12px 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.18);
+  }
+  .editor {
+    min-height: 44px; outline: none; line-height: 1.6; font-size: 14px;
+    color: var(--text); padding: 2px 2px 6px; white-space: pre-wrap; overflow-wrap: anywhere;
+  }
+  .editor:empty::before { content: attr(data-placeholder); color: var(--text-3); }
+  .bar { display: flex; align-items: center; gap: 6px; }
+  .bar .spacer { flex: 1; }
+  .btn {
+    font: inherit; font-size: 12.5px; color: var(--text-2);
+    background: transparent; border: 1px solid var(--border);
+    padding: 5px 10px; border-radius: 7px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .btn:hover { background: var(--bg-hover); color: var(--text); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.ghost { border-color: transparent; }
+  .btn .spark { color: var(--accent); }
+  .hint-key { font-family: var(--mono); font-size: 11px; color: var(--text-3); }
+</style>
+</head><body>
+<style>
+  #pill {
+    position: fixed; z-index: 900; display: none;
+    align-items: center; gap: 6px;
+    padding: 6px 10px; border-radius: 999px;
+    background: var(--bg-panel); color: var(--text);
+    border: 1px solid var(--border-strong);
+    box-shadow: 0 8px 24px rgba(0,0,0,.35);
+    font-size: 12.5px; cursor: pointer; user-select: none;
+    animation: rise .12s ease-out;
+  }
+  #pill .spark { color: var(--accent); }
+  #pill:hover { border-color: var(--accent); }
+  @keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  #card {
+    position: fixed; z-index: 1000; display: none;
+    width: min(420px, 92vw);
+    background: var(--bg-panel); color: var(--text);
+    border: 1px solid var(--border-strong); border-radius: 12px;
+    box-shadow: 0 18px 50px rgba(0,0,0,.45);
+    overflow: hidden;
+    animation: pop .14s ease-out;
+  }
+  @keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.985); } to { opacity: 1; transform: none; } }
+  .card-head {
+    display: flex; align-items: center; gap: 7px;
+    padding: 10px 12px 8px; font-size: 12.5px; font-weight: 600;
+  }
+  .card-head .spark { color: var(--accent); }
+  .card-head .x {
+    margin-left: auto; border: 0; background: transparent; color: var(--text-3);
+    font-size: 15px; cursor: pointer; padding: 2px 4px; border-radius: 5px; line-height: 1;
+  }
+  .card-head .x:hover { background: var(--bg-hover); color: var(--text); }
+  .quote-wrap { padding: 0 12px 8px; }
+  .quote {
+    border-left: 2px solid var(--accent);
+    background: var(--accent-soft);
+    border-radius: 0 7px 7px 0;
+    padding: 7px 10px;
+    font-size: 12.5px; line-height: 1.55; color: var(--text-2);
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    white-space: pre-wrap; overflow-wrap: anywhere;
+  }
+  .quote.expanded { display: block; -webkit-line-clamp: unset; max-height: 160px; overflow: auto; }
+  .quote-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; font-size: 11px; color: var(--text-3); }
+  .linklike { border: 0; background: transparent; color: var(--text-3); font: inherit; font-size: 11px; cursor: pointer; padding: 0; }
+  .linklike:hover { color: var(--accent); }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 8px; }
+  .chip {
+    font: inherit; font-size: 12px; color: var(--text-2);
+    border: 1px solid var(--border); background: transparent;
+    padding: 3px 9px; border-radius: 999px; cursor: pointer;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
+  .input-wrap { padding: 0 12px; }
+  #ask-input {
+    width: 100%; resize: none; border: 0; outline: none; background: transparent;
+    color: var(--text); font: inherit; font-size: 13.5px; line-height: 1.55;
+    padding: 4px 0; min-height: 40px; max-height: 120px;
+  }
+  #ask-input::placeholder { color: var(--text-3); }
+  .hint-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 12px 10px; font-size: 11px; color: var(--text-3);
+  }
+  .hint-row .spacer { flex: 1; }
+  .answer-wrap { border-top: 1px solid var(--border); padding: 10px 12px 10px; }
+  .answer { font-size: 13.5px; line-height: 1.68; max-height: min(42vh, 380px); overflow: auto; }
+  .answer p { margin: 0 0 8px; } .answer p:last-child { margin-bottom: 0; }
+  .answer strong { color: var(--text); }
+  .answer ul, .answer ol { margin: 4px 0 8px; padding-left: 20px; }
+  .answer li { margin: 2px 0; }
+  .answer code { font-family: var(--mono); font-size: 12px; background: var(--bg-l2); padding: 1px 5px; border-radius: 4px; }
+  .answer pre {
+    margin: 8px 0; padding: 9px 11px; border-radius: 8px;
+    background: var(--bg-l2); border: 1px solid var(--border);
+    overflow: auto; font-family: var(--mono); font-size: 12px; line-height: 1.55;
+  }
+  .answer .cursor { display: inline-block; width: 7px; height: 15px; background: var(--accent); vertical-align: -2px; margin-left: 1px; animation: blink 1s steps(1) infinite; border-radius: 1px; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .meta { margin-top: 8px; font-size: 11px; color: var(--text-3); display: flex; align-items: center; gap: 8px; }
+  .meta .spacer { flex: 1; }
+  .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; padding-top: 9px; border-top: 1px dashed var(--border); }
+  .actions .btn { padding: 4px 9px; font-size: 12px; }
+  #toast {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(8px);
+    background: var(--bg-panel); color: var(--text); border: 1px solid var(--border-strong);
+    padding: 8px 14px; border-radius: 9px; font-size: 12.5px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    opacity: 0; pointer-events: none; transition: opacity .16s ease, transform .16s ease; z-index: 1200;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #demo-hint {
+    position: fixed; left: 16px; bottom: 16px; z-index: 800;
+    max-width: 300px; padding: 10px 12px; border-radius: 10px;
+    background: var(--bg-panel); border: 1px solid var(--border);
+    color: var(--text-2); font-size: 12px; line-height: 1.6;
+    box-shadow: 0 10px 30px rgba(0,0,0,.25);
+  }
+  #demo-hint b { color: var(--text); font-weight: 600; }
+  #demo-hint .k { font-family: var(--mono); font-size: 11px; background: var(--bg-l2); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+  #demo-hint .closehint { position: absolute; top: 4px; right: 6px; border: 0; background: transparent; color: var(--text-3); cursor: pointer; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style><div class="app">
+  <aside class="sidebar">
+    <div class="brand"><span class="logo">✦</span> DeepSeek Harness</div>
+    <div class="side-label">工作区</div>
+    <div class="side-item active"><span class="dot"></span> D:\explainer</div>
+    <div class="side-label">会话</div>
+    <div class="side-item active"><span class="dot"></span> 快问插件设计</div>
+    <div class="side-item"><span class="dot"></span> LayerFS 合并策略</div>
+    <div class="side-item"><span class="dot"></span> 前端性能优化</div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <span class="title">快问插件设计</span>
+      <div class="seg" role="group" aria-label="主题">
+        <button type="button" onclick="setTheme('dark')" id="seg-dark" class="on">深色</button>
+        <button type="button" onclick="setTheme('light')" id="seg-light">浅色</button>
+      </div>
+    </header>
+
+    <div class="chat" id="chat">
+      <div class="thread" id="thread">
+        <div class="msg user">
+          <div class="avatar">我</div>
+          <div class="bubble">
+            <div class="who">你</div>
+            <p>LayerFS 里一个 Branch 的成本到底高不高？我想知道 fork 和 merge 各自贵在哪。</p>
+          </div>
+        </div>
+
+        <div class="msg assistant">
+          <div class="avatar">D</div>
+          <div class="bubble">
+            <div class="who">DeepSeek Harness</div>
+            <p>先把结论说在前面：<strong>创建分支几乎不花钱，贵的是合并</strong>。</p>
+            <ul>
+              <li>fork 只是把当前提交的引用复制一份，不复制文件内容，所以是常数级开销。</li>
+              <li>每个 Commit 记录的是相对父提交的增量，多个分支各自长，互不影响。</li>
+              <li>真正开始花钱是在 merge：需要找出共同祖先，做三方合并，冲突时还要人来看。</li>
+            </ul>
+            <p>所以“多开分支”这个动作本身不该被优化，应该优化的是<strong>让分支尽快汇合</strong>，减少长期分叉。</p>
+            <div class="sel-hint">（用鼠标选中上面任意一段文字，会出现「问这段」）</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="composer-wrap">
+      <div class="composer">
+        <div class="editor" id="editor" contenteditable="true" data-placeholder="给 DeepSeek Harness 发消息…"></div>
+        <div class="bar">
+          <button class="btn ghost" type="button">＋</button>
+          <button class="btn ghost" type="button">模型 ▾</button>
+          <span class="spacer"></span>
+          <button class="btn" id="quick-btn" type="button"><span class="spark">✦</span> 快问</button>
+          <button class="btn primary" type="button" onclick="toast('这是交互原型，不会真的发送')">发送</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="pill" role="button" tabindex="0"><span class="spark">✦</span> 问这段</div>
+
+<div id="card" role="dialog" aria-label="快问">
+  <div class="card-head">
+    <span class="spark">✦</span>
+    <span id="card-title">问这段</span>
+    <button class="x" id="card-close" type="button" aria-label="关闭">✕</button>
+  </div>
+
+  <div id="input-view">
+    <div class="quote-wrap" id="quote-wrap">
+      <div class="quote" id="quote"></div>
+      <div class="quote-foot">
+        <span id="quote-count"></span>
+        <button class="linklike" id="quote-toggle" type="button">展开</button>
+      </div>
+    </div>
+    <div class="presets">
+      <button class="chip" type="button" data-preset="explain">解释</button>
+      <button class="chip" type="button" data-preset="translate">翻译</button>
+      <button class="chip" type="button" data-preset="summary">总结</button>
+      <button class="chip" type="button" data-preset="example">举例</button>
+    </div>
+    <div class="input-wrap">
+      <textarea id="ask-input" rows="1" placeholder="想问什么？（回车＝解释这段）"></textarea>
+    </div>
+    <div class="hint-row">
+      <span><span class="hint-key">Enter</span> 发送 · <span class="hint-key">Shift+Enter</span> 换行 · <span class="hint-key">Esc</span> 关闭</span>
+      <span class="spacer"></span>
+      <button class="btn primary" id="send-btn" type="button">发送</button>
+    </div>
+  </div>
+
+  <div id="answer-view" style="display:none">
+    <div class="answer-wrap">
+      <div class="answer" id="answer" aria-live="polite"></div>
+      <div class="meta">
+        <span id="meta-model"></span>
+        <span class="spacer"></span>
+        <button class="linklike" id="stop-btn" type="button" style="display:none">停止</button>
+      </div>
+      <div class="actions" id="actions" style="display:none">
+        <button class="btn" type="button" data-act="copy">复制</button>
+        <button class="btn" type="button" data-act="insert">插入输入框</button>
+        <button class="btn" type="button" data-act="follow">追问</button>
+        <button class="btn" type="button" data-act="escalate">发给主会话</button>
+        <button class="btn" type="button" data-act="retry">重试</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" role="status"></div>
+
+<div id="demo-hint">
+  <button class="closehint" onclick="document.getElementById('demo-hint').remove()" aria-label="关闭提示">✕</button>
+  <b>两种模式，一张卡片</b><br>
+  ① 选中对话里的文字 → 点「问这段」<br>
+  ② 点输入框的「✦ 快问」，或按 <span class="k">Ctrl+Shift+K</span><br>
+  ③ 有选区时按 <span class="k">Ctrl+Shift+E</span> 直接打开
+</div>
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var pill = $("pill"), card = $("card"), quote = $("quote"), quoteWrap = $("quote-wrap");
+  var quoteCount = $("quote-count"), quoteToggle = $("quote-toggle");
+  var inputView = $("input-view"), answerView = $("answer-view");
+  var input = $("ask-input"), answer = $("answer"), metaModel = $("meta-model");
+  var stopBtn = $("stop-btn"), sendBtn = $("send-btn");
+  var chat = $("chat"), editor = $("editor");
+
+  var state = {
+    mode: null,
+    selection: "",
+    anchor: null,
+    expanded: false,
+    streaming: false,
+    timer: null,
+    thread: [],
+    lastAsk: null,
+    pendingSelection: null
+  };
+
+  var presets = {
+    explain: "",
+    translate: "翻译成中文",
+    summary: "用一句话总结",
+    example: "举个例子"
+  };
+
+  function setTheme(t) {
+    document.documentElement.dataset.theme = t;
+    var dark = $("seg-dark"), light = $("seg-light");
+    if (dark) dark.classList.toggle("on", t === "dark");
+    if (light) light.classList.toggle("on", t === "light");
+    if (state.anchor) placeCard();
+  }
+
+  function toast(text) {
+    var el = $("toast");
+    el.textContent = text;
+    el.classList.add("show");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () { el.classList.remove("show"); }, 1600);
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  /* ---------- 极简 Markdown ---------- */
+  function inline(s) {
+    var t = esc(s);
+    t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    t = t.replace(/`([^`]+)`/g, "<code>$1</code>");
+    return t;
+  }
+
+  function renderMarkdown(text) {
+    var lines = String(text).split("\n");
+    var out = [], i = 0, para = [], list = null;
+
+    function flushPara() {
+      if (para.length) { out.push("<p>" + para.map(inline).join("<br>") + "</p>"); para = []; }
+    }
+    function flushList() {
+      if (list) {
+        out.push("<" + list.tag + ">" + list.items.map(function (x) { return "<li>" + inline(x) + "</li>"; }).join("") + "</" + list.tag + ">");
+        list = null;
+      }
+    }
+
+    while (i < lines.length) {
+      var line = lines[i];
+      if (/^```/.test(line)) {
+        flushPara(); flushList();
+        var code = []; i++;
+        while (i < lines.length && !/^```/.test(lines[i])) { code.push(lines[i]); i++; }
+        i++;
+        out.push("<pre><code>" + esc(code.join("\n")) + "</code></pre>");
+        continue;
+      }
+      if (/^\s*$/.test(line)) { flushPara(); flushList(); i++; continue; }
+      var ol = /^\s*(\d+)[.、]\s+(.*)$/.exec(line);
+      var ul = /^\s*[-*·]\s+(.*)$/.exec(line);
+      if (ol || ul) {
+        flushPara();
+        var tag = ol ? "ol" : "ul";
+        if (!list || list.tag !== tag) { flushList(); list = { tag: tag, items: [] }; }
+        list.items.push(ol ? ol[2] : ul[1]);
+        i++; continue;
+      }
+      flushList();
+      para.push(line); i++;
+    }
+    flushPara(); flushList();
+    return out.join("");
+  }
+
+  /* ---------- 选择检测 ---------- */
+  function selectionRect(sel) {
+    if (!sel.rangeCount) return null;
+    var range = sel.getRangeAt(0);
+    var rects = range.getClientRects();
+    if (!rects.length) return null;
+    var last = rects[rects.length - 1];
+    if (last.width === 0 && last.height === 0) last = range.getBoundingClientRect();
+    return last;
+  }
+
+  function insideExcluded(node) {
+    if (!node) return true;
+    var el = node.nodeType === 1 ? node : node.parentElement;
+    if (!el) return true;
+    return !!el.closest("input, textarea, [contenteditable='true'], #card, #pill, .composer");
+  }
+
+  function readSelection() {
+    var sel = window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
+    var text = sel.toString().replace(/\u00a0/g, " ").replace(/[ \t]+\n/g, "\n").trim();
+    if (text.length < 2) return null;
+    var anchorNode = sel.anchorNode;
+    if (insideExcluded(anchorNode)) return null;
+    var el = anchorNode.nodeType === 1 ? anchorNode : anchorNode.parentElement;
+    if (!el || !el.closest("#thread")) return null;
+    var rect = selectionRect(sel);
+    if (!rect) return null;
+    if (text.length > 6000) text = text.slice(0, 6000);
+    return { text: text, rect: rect };
+  }
+
+  function showPill(rect) {
+    pill.style.display = "flex";
+    pill.style.visibility = "hidden";
+    var w = pill.offsetWidth, h = pill.offsetHeight;
+    var left = Math.min(Math.max(12, rect.left), window.innerWidth - w - 12);
+    var top = rect.bottom + 8;
+    if (top + h > window.innerHeight - 12) top = rect.top - h - 8;
+    pill.style.left = left + "px";
+    pill.style.top = top + "px";
+    pill.style.visibility = "visible";
+  }
+
+  function hidePill() { pill.style.display = "none"; }
+
+  function onSelectionChange() {
+    if (state.streaming) return;
+    if (card.style.display === "block" && state.mode === "selection") return;
+    var found = readSelection();
+    if (!found) { hidePill(); return; }
+    state.pendingSelection = found;
+    showPill(found.rect);
+  }
+
+  document.addEventListener("mouseup", function () {
+    setTimeout(onSelectionChange, 20);
+  });
+
+  pill.addEventListener("mousedown", function (e) { e.preventDefault(); });
+  pill.addEventListener("click", function () {
+    var found = state.pendingSelection || readSelection();
+    if (!found) return;
+    openCard("selection", found.rect, found.text);
+  });
+  function openCard(mode, rect, text) {
+    state.mode = mode;
+    state.selection = text || "";
+    state.anchor = rect;
+    state.expanded = false;
+    state.thread = [];
+    inputView.style.display = "block";
+    answerView.style.display = "none";
+    $("card-title").textContent = mode === "selection" ? "问这段" : "快问";
+    quoteWrap.style.display = mode === "selection" ? "block" : "none";
+    quote.classList.remove("expanded");
+    quote.textContent = state.selection;
+    quoteCount.textContent = state.selection ? "已选 " + state.selection.replace(/\s/g, "").length + " 字" : "";
+    quoteToggle.style.display = state.selection.length > 80 ? "inline" : "none";
+    quoteToggle.textContent = "展开";
+    input.value = "";
+    resizeInput();
+    hidePill();
+    card.style.display = "block";
+    placeCard();
+    setTimeout(function () { input.focus(); }, 30);
+  }
+
+  function closeCard() {
+    if (state.streaming) {
+      if (!confirm("回答还没完成，确定关闭？")) return;
+      stopStream();
+    }
+    card.style.display = "none";
+    state.mode = null;
+    state.selection = "";
+    state.anchor = null;
+    state.thread = [];
+    hidePill();
+  }
+
+  function placeCard() {
+    var a = state.anchor;
+    if (!a) return;
+    var r = card.getBoundingClientRect();
+    var w = r.width || 420, h = r.height || 260;
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var left = Math.min(Math.max(12, a.left), vw - w - 12);
+    var below = a.bottom + 10;
+    var above = a.top - h - 10;
+    var top = below;
+    if (below + h > vh - 12 && above > 12) top = above;
+    top = Math.min(Math.max(12, top), Math.max(12, vh - h - 12));
+    card.style.left = left + "px";
+    card.style.top = top + "px";
+  }
+
+  window.addEventListener("resize", function () { if (state.anchor) placeCard(); });
+
+  document.addEventListener("mousedown", function (e) {
+    if (card.style.display !== "block") return;
+    if (card.contains(e.target) || pill.contains(e.target)) return;
+    if (state.streaming) return;
+    closeCard();
+  });
+
+  $("card-close").addEventListener("click", closeCard);
+  quoteToggle.addEventListener("click", function () {
+    state.expanded = !state.expanded;
+    quote.classList.toggle("expanded", state.expanded);
+    quoteToggle.textContent = state.expanded ? "收起" : "展开";
+    placeCard();
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll(".chip"), function (chip) {
+    chip.addEventListener("click", function () {
+      var preset = chip.dataset.preset;
+      input.value = preset === "explain" ? "" : presets[preset];
+      resizeInput();
+      send(preset === "explain" ? input.value.trim() : presets[preset], preset);
+    });
+  });
+
+  function resizeInput() {
+    input.style.height = "auto";
+    input.style.height = Math.min(120, Math.max(40, input.scrollHeight)) + "px";
+  }
+  input.addEventListener("input", resizeInput);
+
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      send(input.value.trim());
+    }
+  });
+
+  sendBtn.addEventListener("click", function () { send(input.value.trim()); });
+
+  function send(question, preset) {
+    if (state.streaming) return;
+    state.lastAsk = {
+      question: question || "",
+      mode: state.mode,
+      selection: state.selection,
+      preset: preset || "explain"
+    };
+    startStream();
+  }
+  /* ---------- 假流式回答 ---------- */
+  var TEMPLATES = {
+    translate: "The cost of a branch is mostly in **merging**, not in creating it.\n\n- `fork` only copies a reference, so it is constant time.\n- Each Commit records a delta against its parent.\n- The real expense appears at `merge`.",
+    summary: "一句话：**创建分支几乎免费，合并才有成本。**\n\n真正值得优化的是让分支尽快汇合，而不是减少 fork。",
+    example: "举个最小的例子：\n\n```\nmain:    A ── B ── D\n              \\     /\nfeature:       C ──┘\n```\n\n`C` 只存相对 `B` 的差异，所以开分支的瞬间几乎不占空间；`D` 处合并且两边都改过同一行时，才需要三方合并。"
+  };
+
+  function buildAnswer(ask) {
+    if (ask.preset === "translate") return TEMPLATES.translate;
+    if (ask.preset === "summary") return TEMPLATES.summary;
+    if (ask.preset === "example") return TEMPLATES.example;
+
+    var q = ask.question || "";
+    if (ask.mode === "quick" && q === "") {
+      return "快问就是一条**旁路**：一次 completion，不挂工具、不带会话历史。\n\n- 所以首 token 快、成本低\n- 不会写进主会话日志\n- 需要深入时再“发给主会话”\n\n适合随手确认概念、翻译一句、换个说法。";
+    }
+    if (/merge|合并|冲突/i.test(q)) {
+      return "合并贵在**三方合并**：\n\n- 要先找到共同祖先（merge base）\n- 两边都改同一区域时才会真正冲突\n- 冲突需要人工判断，这才是最贵的一步\n\n所以减少长期分叉比减少 fork 更有效。";
+    }
+    if (/fork|分支|branch/i.test(q)) {
+      return "fork 本身是**常数级**的：\n\n- 只复制当前提交的引用，不复制文件\n- 新 Commit 只记录相对父提交的增量\n- 分支越多，合并时的搜索面才会变大\n\n结论：别怕开分支，要怕的是分支活得久。";
+    }
+    var lead = ask.selection
+      ? "你选中的这段，核心是：**" + ask.selection.slice(0, 36) + (ask.selection.length > 36 ? "…" : "") + "**"
+      : "你想问的是：**" + (q || "解释这段") + "**";
+    return lead + "。\n\n- 先抓住它的定义，再看它解决什么问题\n- 和相邻概念的区别，往往比定义更有用\n- 想要更深的推理，可以“发给主会话”";
+  }
+
+  function startStream() {
+    state.streaming = true;
+    var ask = state.lastAsk;
+    var text = buildAnswer(ask);
+
+    inputView.style.display = "none";
+    answerView.style.display = "block";
+    answer.innerHTML = "";
+    metaModel.textContent = "deepseek-flash · off · 生成中…";
+    stopBtn.style.display = "inline";
+    $("actions").style.display = "none";
+    placeCard();
+
+    var i = 0;
+    var t0 = performance.now();
+    var step = function () {
+      if (!state.streaming) return;
+      i = Math.min(text.length, i + 3);
+      answer.innerHTML = renderMarkdown(text.slice(0, i)) + '<span class="cursor"></span>';
+      answer.scrollTop = answer.scrollHeight;
+      if (i < text.length) {
+        state.timer = setTimeout(step, 18);
+      } else {
+        finishStream(t0);
+      }
+    };
+    step();
+  }
+
+  function finishStream(t0) {
+    state.streaming = false;
+    stopBtn.style.display = "none";
+    $("actions").style.display = "flex";
+    var ms = Math.max(300, Math.round(performance.now() - t0));
+    metaModel.textContent = "deepseek-flash · off · " + (ms / 1000).toFixed(1) + "s";
+    placeCard();
+    state.thread.push({ role: "user", text: state.lastAsk.question });
+    state.thread.push({ role: "assistant", text: buildAnswer(state.lastAsk) });
+  }
+
+  function stopStream() {
+    state.streaming = false;
+    clearTimeout(state.timer);
+    stopBtn.style.display = "none";
+    $("actions").style.display = "flex";
+    metaModel.textContent = "已停止";
+  }
+
+  stopBtn.addEventListener("click", stopStream);
+
+  /* ---------- 动作栏 ---------- */
+  $("actions").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-act]");
+    if (!btn) return;
+    var act = btn.dataset.act;
+    var text = answer.textContent || "";
+    if (act === "copy") { copyText(text); return; }
+    if (act === "insert") {
+      editor.textContent = text;
+      editor.focus();
+      toast("已插入输入框");
+      closeCard();
+      return;
+    }
+    if (act === "escalate") {
+      var s = state.selection ? "> " + state.selection.replace(/\n/g, "\n> ") + "\n\n" : "";
+      editor.textContent = s + "问题：" + (state.lastAsk.question || "解释这段") + "\n\n（请深入解释，必要时查代码）";
+      editor.focus();
+      toast("已填入输入框，可编辑后发送");
+      closeCard();
+      return;
+    }
+    if (act === "follow") {
+      inputView.style.display = "block";
+      answerView.style.display = "none";
+      input.value = "";
+      resizeInput();
+      placeCard();
+      setTimeout(function () { input.focus(); }, 30);
+      return;
+    }
+    if (act === "retry") {
+      state.streaming = false;
+      startStream();
+    }
+  });
+
+  function copyText(text) {
+    function fallback() {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); toast("已复制"); } catch (err) { toast("复制失败"); }
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { toast("已复制"); }, fallback);
+    } else { fallback(); }
+  }
+
+  /* ---------- 快问入口 ---------- */
+  function openQuickAsk() {
+    var found = readSelection();
+    if (found) { openCard("selection", found.rect, found.text); return; }
+    var box = document.querySelector(".composer").getBoundingClientRect();
+    openCard("quick", { left: box.left, top: box.top - 6, bottom: box.top - 6, right: box.right }, "");
+  }
+
+  $("quick-btn").addEventListener("click", function (e) { e.stopPropagation(); openQuickAsk(); });
+
+  document.addEventListener("keydown", function (e) {
+    var mod = e.ctrlKey || e.metaKey;
+    if (mod && e.shiftKey && (e.key === "K" || e.key === "k")) { e.preventDefault(); openQuickAsk(); return; }
+    if (mod && e.shiftKey && (e.key === "E" || e.key === "e")) {
+      e.preventDefault();
+      var found = readSelection();
+      if (found) openCard("selection", found.rect, found.text);
+      else toast("先在对话里选中一段文字");
+      return;
+    }
+    if (e.key === "Escape") {
+      if (state.streaming) { stopStream(); return; }
+      if (card.style.display === "block") { closeCard(); return; }
+      hidePill();
+    }
+  });
+
+  window.setTheme = setTheme;
+  window.toast = toast;
+
+  setTimeout(function () { toast("选中对话里的文字，试试「问这段」"); }, 700);
+})();
+</script>
+</body>
+</html>
