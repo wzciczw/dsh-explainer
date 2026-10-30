@@ -763,3 +763,60 @@ test('the window waits for the config before pinning the model', async () => {
   chat.remove()
   container.remove()
 })
+
+test('a better-sidebar editor path is found from the input value', async () => {
+  const registrations = harness()
+  const overlay = registrations.find(item => item.options.id === 'explainer.window')
+  const requests = []
+  dom.window.fetch = async (url, init) => {
+    if (String(url).includes('/explainer/config')) {
+      return new Response(JSON.stringify({ ok: true, config: {
+        enabled: true, showMeta: true, selectionMaxChars: 6000, inheritContext: true,
+        presets: [], rightClick: true, autoAnswer: false,
+      } }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+    requests.push(JSON.parse(init.body))
+    return sse([
+      'event: meta\ndata: {"provider":"p","model":"m","effort":"off"}\n\n',
+      'event: delta\ndata: {"text":"好"}\n\n',
+      'event: done\ndata: {"ms":1}\n\n',
+    ])
+  }
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  const useSessions = (select) => select({ byId: { s1: { retainedBy: { mainView: 1 } } } })
+  await act(async () => { root.render(React.createElement(overlay.component, { useSessions })) })
+
+  // Older/native layouts may not expose the data-dsh host attribute, and the
+  // path input may carry the path only in its value.
+  const wrapper = document.createElement('div')
+  const path = document.createElement('input')
+  path.value = 'docs/rfcs/concept/C1_research_progress_and_boundary.md'
+  const body = document.createElement('div')
+  body.textContent = '探索推进与共享采纳，telemetry 描述活动。'
+  wrapper.append(path, body)
+  document.body.appendChild(wrapper)
+
+  await act(async () => {
+    const range = document.createRange()
+    range.setStart(body.firstChild, 0)
+    range.setEnd(body.firstChild, 8)
+    const selection = dom.window.getSelection()
+    selection.removeAllRanges()
+    selection.addRange(range)
+    wrapper.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+  })
+  const card = container.querySelector('.dx-card')
+  assert.ok(card !== null, 'the editor selection opens the window')
+  assert.equal(card.querySelector('.dx-file').textContent.trim(), 'C1_research_progress_and_boundary.md')
+  await act(async () => {
+    card.querySelector('.dx-send').click()
+    await new Promise(resolve => setTimeout(resolve, 30))
+  })
+  assert.equal(requests.length, 1)
+  assert.equal(requests[0].filePath, 'docs/rfcs/concept/C1_research_progress_and_boundary.md')
+  await act(async () => { root.unmount() })
+  wrapper.remove()
+  container.remove()
+})

@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- Time-sensitive questions can use the host web-search seam (`ctx.web.search`): up to four cited sources are injected as a bounded `[联网检索]` block, and the card shows `联网 N 源`. Without a search provider the answer proceeds without it.
+- The better-sidebar path detector now falls back to the path input's value and to the nearest ancestor, covering native tabs that do not expose a marked host or a `title`.
+
 ### Fixed
 
 - The pinned `defaultModel` now wins over the inherited main-window route: the config response exposes `pinnedModel`, the browser no longer mistakes the deployment default for a pin, and a send waits for the config before choosing a model.

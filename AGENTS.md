@@ -11,6 +11,7 @@ select text anywhere in the DSH Web GUI, and get a fast, isolated answer in plac
 - **One-shot completion**: no subagent, no tool loop, no main-session writes.
 - **Follows the main window model** by default; a deployment can pin any model the main chat offers (`defaultModel`).
 - **Auto-answer**: English prose → translate first; a term/concept → explain it; an English question → answer it. Typing cancels the automatic turn.
+- **Time-sensitive retrieval**: when a question/selection mentions latest/version/price/model/context, the host calls the `ctx.web.search` seam and injects up to `webSearchMaxResults` cited sources; the card shows the source count. No provider means the search is skipped, not a failure.
 - **Right-sidebar file context**: reads the selected file whole (read-only, workspace-contained); HTML is reduced to visible text before it reaches the model.
 - **Interactive diagrams**: a selection-mode toggle (or holding Alt/Option) suspends the page's pan/zoom pointer handler so native text selection works; the mode is scoped to one preview.
 - **Composer quick-ask is a sub-session**: `Ctrl/Cmd+Shift+K` inherits the same read-only conversation snapshot as a selection; follow-ups stay in that isolated thread.
@@ -70,6 +71,7 @@ The plugin row's `defaultModel` is a pin: when it is set and the main chat still
     autoAnswer: true          # auto-start the default answer for recognized selections
     defaultModel: provider/model  # pin a model; omit to follow the main window
     inheritContext: true      # read-only snapshot for both selection and composer quick-ask
+    webSearch: true           # time-sensitive retrieval through ctx.web.search
     maxTokens: 800
     fileAccess: true          # whole-file context for right-sidebar selections
 ```

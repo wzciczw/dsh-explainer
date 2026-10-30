@@ -25,6 +25,7 @@ export declare function composeOpening(input: {
     context: string;
     files: string;
     file: string;
+    web?: string;
 }): string;
 /** A follow-up turn appended to an existing quick-ask thread. */
 export declare function composeFollowUp(question: string, files?: string): string;

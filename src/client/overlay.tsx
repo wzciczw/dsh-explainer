@@ -523,6 +523,7 @@ function MetaLine({ card, t }: { card: CardState; t: Translate }): React.ReactEl
   }
   if (meta?.ms !== undefined) parts.push(`${(meta.ms / 1000).toFixed(1)}s`)
   if ((meta?.contextChars ?? 0) > 0) parts.push(t('contextChars').replace('{n}', String(meta?.contextChars)))
+  if ((meta?.web ?? 0) > 0) parts.push(t('webSources').replace('{n}', String(meta?.web)))
   if (parts.length === 0) return null
   const nodes: React.ReactNode[] = []
   parts.forEach((part, index) => {

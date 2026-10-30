@@ -7,12 +7,44 @@ import type {
   SessionsServiceLike,
   StreamChunkLike,
   ThreadMessage,
+  WebServiceLike,
 } from './types.js'
 import { composeFollowUp, composeOpening, SYSTEM_PROMPT } from './prompt.js'
 import { readSessionCwd, readSessionModel, readTranscript } from './transcript.js'
 import { firstAdvertised } from './models.js'
 import { readFileContext, readFileGrounding } from './files.js'
 import type { Thread, ThreadStore } from './threads.js'
+
+/** Time-sensitive vocabulary worth one retrieval call. */
+const FRESH = /(最新|当前|现在|今天|今年|近日|价格|发布|版本|更新|截止|截至|上下文窗口|模型|opus|sonnet|gpt|gemini|claude|latest|current|today|price|release|version|changelog|context window)/i
+
+function shouldSearch(text: string): boolean {
+  return FRESH.test(text)
+}
+
+/** Prefer the typed question; a generic "latest info" preset uses the selection. */
+function searchQuery(question: string, selection: string): string {
+  const q = question.replace(/\s+/g, ' ').trim()
+  if (q.length >= 4 && !/^(查一下|查最新|最新信息|最新情况)[：: ]*$/.test(q)) return q.slice(0, 200)
+  return (selection.replace(/\s+/g, ' ').trim() || q).slice(0, 240)
+}
+
+function clip(text: string, max: number): string {
+  return text.length > max ? text.slice(0, max) + '…' : text
+}
+
+function formatWeb(result: { content?: string; sources?: ReadonlyArray<{ url: string; title?: string; snippet?: string }> }, query: string): string {
+  const lines = ['查询：' + query]
+  const summary = result.content?.trim()
+  if (summary !== undefined && summary !== '') lines.push('摘要：' + clip(summary, 900))
+  for (const source of (result.sources ?? []).slice(0, 4)) {
+    const title = source.title?.trim() || source.url
+    const snippet = source.snippet?.trim()
+    lines.push('- ' + title + ' ' + source.url + (snippet === undefined || snippet === '' ? '' : ' — ' + clip(snippet, 300)))
+  }
+  return lines.length > 1 ? lines.join('\n') : ''
+}
+
 
 /** A refusal the SSE writer can serialize without leaking internals. */
 export class AskError extends Error {
@@ -63,7 +95,7 @@ export class AskEngine {
     request: AskRequest,
     signal: AbortSignal,
     onDelta: (text: string) => void,
-    onMeta?: (meta: { provider: string; model: string; effort?: string; contextChars: number }) => void,
+    onMeta?: (meta: { provider: string; model: string; effort?: string; contextChars: number; web?: number }) => void,
   ): Promise<AskOutcome> {
     if (!this.config.enabled) throw new AskError('disabled', 'the explainer plugin is disabled', 503)
     if (this.active >= this.config.maxConcurrent) {
@@ -81,6 +113,7 @@ export class AskEngine {
     this.active += 1
     try {
       const sessions = this.ctx.get?.('sessions') as SessionsServiceLike | undefined
+      let webSources = 0
       const now = Date.now()
       let thread = this.threads.get(request.threadId, now)
       const created = thread === undefined
@@ -102,12 +135,15 @@ export class AskEngine {
               maxChars: this.config.fileMaxChars,
               excerptChars: this.config.fileExcerptChars,
             })
+        const web = await this.searchWeb(request, signal)
+        webSources = web.count
         const first = composeOpening({
           selection: request.selection ?? '',
           question: request.question,
           context: snapshot.text,
           files,
           file: explicitFile,
+          web: web.text,
         })
         thread = this.threads.create({
           id: request.threadId,
@@ -158,6 +194,7 @@ export class AskEngine {
         model: target.model,
         ...(call.config.reasoningEffort === undefined ? {} : { effort: call.config.reasoningEffort }),
         contextChars: thread.contextChars,
+        ...(webSources > 0 ? { web: webSources } : {}),
       })
 
       // A copy: the adapter reads this array for the whole stream, while the
@@ -222,6 +259,33 @@ export class AskEngine {
       this.active -= 1
     }
   }
+  /** One bounded web search for a time-sensitive opening turn; failures never block the answer. */
+  private async searchWeb(
+    request: AskRequest,
+    signal: AbortSignal,
+  ): Promise<{ text: string; count: number }> {
+    if (!this.config.webSearch) return { text: '', count: 0 }
+    const sourceText = [request.question, request.selection ?? ''].join('\n')
+    if (!shouldSearch(sourceText)) return { text: '', count: 0 }
+    const web = this.ctx.get?.('web') as WebServiceLike | undefined
+    if (web === undefined || typeof web.search !== 'function') return { text: '', count: 0 }
+    const query = searchQuery(request.question, request.selection ?? '')
+    if (query === '') return { text: '', count: 0 }
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 6_000)
+    timer.unref?.()
+    const combined = typeof AbortSignal.any === 'function' ? AbortSignal.any([signal, controller.signal]) : signal
+    try {
+      const result = await web.search({ query, maxResults: this.config.webSearchMaxResults }, combined)
+      const text = formatWeb(result, query)
+      return { text, count: text === '' ? 0 : (result.sources?.length ?? 0) }
+    } catch {
+      return { text: '', count: 0 }
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
   /** Keep the opening turn plus the newest follow-up turns. */
   private trim(messages: ThreadMessage[]): ThreadMessage[] {
     const keep = Math.max(2, this.config.maxTurns * 2)

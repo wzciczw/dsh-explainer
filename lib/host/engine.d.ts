@@ -40,7 +40,10 @@ export declare class AskEngine {
         model: string;
         effort?: string;
         contextChars: number;
+        web?: number;
     }) => void): Promise<AskOutcome>;
+    /** One bounded web search for a time-sensitive opening turn; failures never block the answer. */
+    private searchWeb;
     /** Keep the opening turn plus the newest follow-up turns. */
     private trim;
     /**

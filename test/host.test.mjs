@@ -362,3 +362,43 @@ test('a busy engine refuses instead of queueing', async () => {
   )
   await blocker
 })
+
+test('a time-sensitive question searches the web and injects cited sources', async () => {
+  const web = {
+    requests: [],
+    search: async (request) => {
+      web.requests.push(request)
+      return {
+        content: 'Claude 的最新上下文窗口是 1M。',
+        sources: [{ url: 'https://example.com/models', title: 'Model docs', snippet: 'Context window 1M.' }],
+      }
+    },
+  }
+  const sessions = { get: () => ({ header: { cwd: '/' }, snapshotEvents: () => [] }) }
+  const ctx = { get: key => (key === 'sessions' ? sessions : key === 'web' ? web : undefined), logger: {} }
+  const { llm, calls } = fakeLlm()
+  const engine = new AskEngine(ctx, llm, new ThreadStore(10, 60_000), normalizeConfig({ inheritContext: false, webSearch: true }))
+  const meta = []
+  await engine.run(
+    { threadId: 'web-1', mode: 'quick', question: 'opus和sonnet最新的上下文窗口是多少' },
+    new AbortController().signal,
+    () => {},
+    value => meta.push(value),
+  )
+  assert.equal(web.requests.length, 1)
+  assert.match(web.requests[0].query, /opus/)
+  const prompt = calls[0].messages[0].content[0].text
+  assert.match(prompt, /\[联网检索\]/)
+  assert.match(prompt, /https:\/\/example\.com\/models/)
+  assert.equal(meta[0].web, 1)
+})
+
+test('an ordinary explanation does not search the web', async () => {
+  const web = { requests: [], search: async (request) => { web.requests.push(request); return { sources: [] } } }
+  const sessions = { get: () => ({ header: { cwd: '/' }, snapshotEvents: () => [] }) }
+  const ctx = { get: key => (key === 'sessions' ? sessions : key === 'web' ? web : undefined), logger: {} }
+  const { llm } = fakeLlm()
+  const engine = new AskEngine(ctx, llm, new ThreadStore(10, 60_000), normalizeConfig({ inheritContext: false, webSearch: true }))
+  await engine.run({ threadId: 'web-2', mode: 'quick', question: '解释一下分支为什么便宜' }, new AbortController().signal, () => {})
+  assert.equal(web.requests.length, 0)
+})

@@ -67,22 +67,56 @@ function documentPathOf(node: Node | null): string | undefined {
   return path === undefined || path === '' ? undefined : path
 }
 
+/** A value that looks like a workspace path, not a search query or a button title. */
+function pathLike(value: string | null | undefined): string | undefined {
+  const text = value?.trim()
+  if (text === undefined || text === '') return undefined
+  if (text.length > 4096 || text.includes('\n')) return undefined
+  // A directory-ish path or a file with an extension; both are safe for the
+  // host to resolve against the session workspace.
+  if (/[\\/]/.test(text)) return text
+  return /^[^\\/]+\.(?:[a-z0-9]{1,8})$/i.test(text) ? text : undefined
+}
+
+/** The path input an editor header renders, whether it exposes title or only value. */
+function inputPath(container: Element): string | undefined {
+  for (const input of container.querySelectorAll('input[title]')) {
+    const path = pathLike(input.getAttribute('title'))
+    if (path !== undefined) return path
+  }
+  for (const input of container.querySelectorAll('input')) {
+    const path = pathLike((input as HTMLInputElement).value)
+    if (path !== undefined) return path
+  }
+  for (const element of container.querySelectorAll('[data-path], [data-file-path]')) {
+    const path = pathLike(element.getAttribute('data-path') ?? element.getAttribute('data-file-path'))
+    if (path !== undefined) return path
+  }
+  return undefined
+}
+
 /**
  * The file path the better-sidebar editor shows for the tab that contains
- * this node. Its header renders the path input with `title={path}`; matching
- * on the enclosing pane/native-tab host keeps the answer scoped to the tab
- * the user is selecting in.
+ * this node.
+ *
+ * The header's path input carries `title={path}` in current builds, but the
+ * native tab shell does not always wrap the editor in a marked host (and some
+ * builds render only the input's value). Use the marked host first, then walk
+ * up to the nearest ancestor that owns a path input; the walk stops at the
+ * nearest tab, so a neighbouring tab's header cannot win.
  */
 function editorPathOf(node: Node | null): string | undefined {
   const element = elementOf(node)
   if (element === null) return undefined
   const host = element.closest(BETTER_SIDEBAR_HOSTS)
-  if (host === null) return undefined
-  // Editor headers also title plain controls; take the first title that has a
-  // path shape, not merely the first input in the pane.
-  for (const input of host.querySelectorAll('input[title]')) {
-    const path = input.getAttribute('title')?.trim()
-    if (path !== undefined && path !== '' && (path.includes('/') || path.includes('\\'))) return path
+  if (host !== null) {
+    const path = inputPath(host)
+    if (path !== undefined) return path
+  }
+  let current: Element | null = element
+  for (let depth = 0; depth < 12 && current !== null; depth += 1, current = current.parentElement) {
+    const path = inputPath(current)
+    if (path !== undefined) return path
   }
   return undefined
 }

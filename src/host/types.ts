@@ -96,6 +96,22 @@ export type StreamChunkLike =
   | { type: string }
 
 /** `ctx.llm` — the streaming model-call service. */
+export interface WebSearchSourceLike {
+  url: string
+  title?: string
+  snippet?: string
+}
+
+export interface WebSearchResultLike {
+  content?: string
+  sources: WebSearchSourceLike[]
+}
+
+/** The `ctx.web` seam: one provider-backed search call. */
+export interface WebServiceLike {
+  search: (request: { query: string; maxResults?: number }, signal?: AbortSignal) => Promise<WebSearchResultLike>
+}
+
 export interface LlmServiceLike {
   prepareCall: (
     config: {
@@ -167,6 +183,10 @@ export interface ExplainerConfig {
   showMeta: boolean
   maxConcurrent: number
   rightClick: boolean
+  /** Search the web for time-sensitive questions before answering. */
+  webSearch: boolean
+  /** Maximum cited sources injected into the prompt. */
+  webSearchMaxResults: number
   /** Start the default answer as soon as a recognized selection opens. */
   autoAnswer: boolean
   fileAccess: boolean

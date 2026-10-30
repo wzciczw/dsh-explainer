@@ -12,5 +12,7 @@
         temperature: 0.3
         inheritContext: true
         autoAnswer: true
+        webSearch: true
+        webSearchMaxResults: 4
         maxTurns: 3
         # defaultModel: <provider>/<model>   # 钉住弹窗默认模型；删掉即跟随主对话

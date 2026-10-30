@@ -21,6 +21,8 @@ export interface Turn {
 /** Route and timing facts shown under an answer. */
 export interface Meta {
   provider?: string
+  /** Number of web sources injected into the prompt. */
+  web?: number
   model?: string
   effort?: string
   ms?: number
