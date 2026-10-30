@@ -151,7 +151,7 @@ npm run build
 - id: explainer
   name: "dsh-explainer"
   config:
-    maxTokens: 800          # 单次输出上限
+    maxTokens: 800          # 非思考模型的输出上限；强制思考的模型会自动抬到 4096/8192
     temperature: 0.3
     inheritContext: true    # 划词与输入栏快问默认继承对话上下文
     maxTurns: 3             # 追问保留轮数

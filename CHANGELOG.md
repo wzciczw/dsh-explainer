@@ -12,6 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- Mandatory-thinking models (Gemini/Claude profiles without an `off` effort) no longer spend the whole 800-token answer budget on reasoning: the engine raises their output budget to 4096 (8192 for high/xhigh/max), leaving room for visible text.
 - A model provider that ignores abort no longer pins a concurrency slot: the engine races each stream against `timeoutMs` and releases it; the browser aborts a request that receives no first frame after 45s.
 - The pinned `defaultModel` now wins over the inherited main-window route: the config response exposes `pinnedModel`, the browser no longer mistakes the deployment default for a pin, and a send waits for the config before choosing a model.
 - The persona now warns that model version/price/date knowledge may be stale and suggests verification, instead of asserting an old version is latest.

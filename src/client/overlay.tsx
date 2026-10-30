@@ -466,6 +466,7 @@ const TurnView = React.memo(function TurnView(props: {
         {assistant
           ? (turn.text !== '' ? <Markdown text={turn.text} /> : null)
           : turn.text}
+        {turn.streaming === true && turn.text === '' && <span className="dx-thinking">{t('thinking')}</span>}
         {turn.streaming === true && <span className="dx-cursor" />}
         {turn.error !== undefined && <div>{friendlyError(turn, t)}</div>}
       </div>

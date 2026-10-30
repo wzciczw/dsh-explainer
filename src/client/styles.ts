@@ -52,6 +52,7 @@ button.dx-badge{cursor:pointer}
 .dx-turn[data-role="user"] .dx-bubble{max-width:88%;background:var(--dx-soft);color:var(--dsw-alias-label-primary,#e7e9ee)}
 .dx-turn[data-role="assistant"] .dx-bubble{background:transparent;padding:0 2px}
 .dx-turn[data-role="assistant"] .dx-bubble[data-error="true"]{color:var(--dsw-alias-state-error-primary,#f85149);font-size:12.5px}
+.dx-thinking{font-size:12px;color:var(--dsw-alias-label-tertiary,#7d8494);margin-right:6px}
 .dx-cursor{display:inline-block;width:6px;height:13px;margin-left:2px;vertical-align:-2px;border-radius:1px;
   background:var(--dx-accent);animation:dx-blink 1s steps(1) infinite}
 .dx-turn-actions{display:flex;gap:4px;margin-top:6px;opacity:0;transition:opacity .12s}

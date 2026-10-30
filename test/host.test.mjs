@@ -428,3 +428,30 @@ test('a hanging model stream times out and releases the concurrency slot', async
   assert.ok(Date.now() - started < 1000, 'the deadline releases the slot promptly')
   assert.equal(engine.inFlight(), 0)
 })
+
+test('mandatory-thinking models get a budget large enough for text output', async () => {
+  const sessions = { get: () => ({ header: { cwd: '/' }, snapshotEvents: () => [] }) }
+  const ctx = { get: key => (key === 'sessions' ? sessions : undefined), logger: {} }
+  const calls = []
+  const llm = {
+    prepareCall: async (config, signal, configure) => {
+      const model = { reasoning: { efforts: [{ id: 'low' }, { id: 'high' }] } }
+      const controls = { temperature: config.temperature, maxTokens: config.maxTokens }
+      const resolved = configure(controls, model)
+      return {
+        config: { ...config, ...resolved },
+        stream: async function* (options) {
+          calls.push(options)
+          yield { type: 'text-delta', index: 0, text: '答' }
+          yield { type: 'finish', reason: { kind: 'stop' } }
+        },
+      }
+    },
+    listProviders: () => [{ id: 'p' }],
+    listModels: async () => [{ id: 'm' }],
+  }
+  const engine = new AskEngine(ctx, llm, new ThreadStore(10, 60_000), normalizeConfig({ inheritContext: false }))
+  await engine.run({ threadId: 'think-1', mode: 'quick', question: 'hi' }, new AbortController().signal, () => {})
+  assert.equal(calls[0].reasoningEffort, 'low')
+  assert.equal(calls[0].maxTokens, 4096)
+})
