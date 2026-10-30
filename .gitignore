@@ -2,3 +2,6 @@ node_modules/
 lib/client-build/
 *.log
 .DS_Store
+.tmp-*/
+*.tgz
+coverage/

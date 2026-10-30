@@ -23,7 +23,8 @@
     "AGENTS.md",
     "PREVIEW-SELECTION.md",
     "LICENSE",
-    "assets/icon-180.png"
+    "assets/icon-180.png",
+    "CHANGELOG.md"
   ],
   "engines": {
     "node": ">=20",
