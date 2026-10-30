@@ -7,7 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
-- Default `maxTokens` is now 4096 (was 800); mandatory-thinking models keep the 4096/8192 floor. The desktop profile pins `defaultModel: newapi/deepseek-flash` and `maxTokens: 4096`.
+- Default `maxTokens` is now 4096 (was 800); mandatory-thinking models keep the 4096/8192 floor. The desktop profile pins `defaultModel: newapi/deepseek-flash` at `reasoningEffort: low` with `maxTokens: 4096`, so the window answers in the low-thinking tier (`ds-low`) instead of the lowest available one. The README now records where to change the pin: the profile's `cordis.patch.yml` (`explainer` row), or dropping `defaultModel` to follow the composer's model control.
 
 ### Added
 

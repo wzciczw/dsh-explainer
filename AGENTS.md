@@ -70,11 +70,14 @@ The plugin row's `defaultModel` is a pin: when it is set and the main chat still
   config:
     autoAnswer: true          # auto-start the default answer for recognized selections
     defaultModel: provider/model  # pin a model; omit to follow the main window
+    reasoningEffort: low      # pin an effort level (off…max); omit for the lowest supported
     inheritContext: true      # read-only snapshot for both selection and composer quick-ask
     webSearch: true           # time-sensitive retrieval through ctx.web.search
     maxTokens: 4096
     fileAccess: true          # whole-file context for right-sidebar selections
 ```
+
+Users change these knobs in their profile patch (`~/.dsh/profiles/<profile>/cordis.patch.yml`, row `explainer`); there is no model picker inside the quick-ask card. To change per session instead, drop `defaultModel` and switch the main window's model with the composer model control or `/model`.
 
 ## Verify
 

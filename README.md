@@ -56,8 +56,8 @@ dsh plugin --profile <profile> add dsh-explainer
 - **划词问**：选中对话里的文字 → 出现「✦ 问这段」→ 点击、**右键**或 `Ctrl/Cmd+Shift+E` 打开窗口。
 - **右侧栏文件也能用**：原生 document preview 和 better-sidebar 的编辑器里都能划词/右键，默认读取该文件全文作为上下文（仅工作区内，只读）。**HTML 文件默认就能在渲染后的页面里划词**（插件自己的 renderer，iframe 仍是不透明 sandbox）；不想运行页面脚本时可在查看器菜单切回内置预览。可访问的同源 iframe 也能划词（仅识别出的文件预览）。
 - **快问**：输入框右侧「✦ 快问」或 `Ctrl/Cmd+Shift+K` 打开同一张卡片，不带引用。它同样继承主会话的只读快照（像一个子会话），追问留在同一线程。
-- **默认继承主对话模型**：不配置时读取主窗口的 `modelSelection` 投影，每次请求都带同一个 `provider/model`；主窗口切换后立即跟随。**配置了 `defaultModel` 时，钉住的模型优先**（即使主窗口在别的模型），本机即固定走 `newapi/deepseek-flash`。
-- **也可以钉在某个可选模型上**：在插件行写 `defaultModel: provider/model`，从主对话能选的模型里挑一个作为弹窗默认（本机配置为 `newapi/deepseek-flash`）。弹窗标题会标示当前模型；某次请求仍可显式指定别的路由，钉住的是默认而非锁定。
+- **默认继承主对话模型**：不配置时读取主窗口的 `modelSelection` 投影，每次请求都带同一个 `provider/model`；主窗口切换后立即跟随。**配置了 `defaultModel` 时，钉住的模型优先**（即使主窗口在别的模型），本机即固定走 `newapi/deepseek-flash` + 低思考档（`reasoningEffort: low`，即 `ds-low`）。
+- **也可以钉在某个可选模型上**：在插件行写 `defaultModel: provider/model`，从主对话能选的模型里挑一个作为弹窗默认（本机配置为 `newapi/deepseek-flash`，`reasoningEffort: low`）。弹窗标题会标示当前模型；某次请求仍可显式指定别的路由，钉住的是默认而非锁定。
 - **可选模型从哪来**：宿主只读询问已注册的模型适配器（`listProviders` + `listModels`），结果通过 `GET /explainer/models` 与 `/explainer/config` 暴露给前端；不读任何 API Key，单个 provider 超时或报错只丢掉它自己。
 - **零点击追问**：输入框常驻卡片底部，答案结束后直接回车继续问，沿用同一个隔离线程。
 - **上下文继承 + 隔离**：划词卡片与输入栏快问在新建线程时都会把主会话最近消息做一次只读快照；之后只写宿主内存里的线程，主会话日志不变。
@@ -174,19 +174,24 @@ npm run build
     # 也可写 { provider, model }；只写模型名时须同时配 provider
     # defaultModel: newapi-gemini/gemini-3.8-flash
     # provider / model 仅在拿不到主窗口模型时兜底；默认与主窗口一致
-    # reasoningEffort 留空则取最低可用档（off / minimal / low）
+    # reasoningEffort 留空则取最低可用档（off / minimal / low）；
+    # 写 low 即固定低思考档（本机快问默认，俗称 ds-low）
+    # reasoningEffort: low
 ```
 
-本机（`desktop` profile 的 `cordis.patch.yml`）已配置：
+本机（`~/.dsh/profiles/desktop/cordis.patch.yml`）已配置：
 
 ```yaml
 - id: explainer
   config:
     defaultModel: newapi/deepseek-flash
+    reasoningEffort: low   # 低思考档（ds-low）；留空则取最低可用档（deepseek-flash 为 off）
     maxTokens: 4096
 ```
 
-删掉这段即恢复「弹窗继承主对话」。模型标识取自 `llm-pi-ai` 里 `newapi-gemini` 路由的模型 `id`。
+- **手动改默认**：编辑上面这段。`defaultModel` 写 `provider/model`，`reasoningEffort` 写 `off` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max`；保存后按界面刷新按钮（或重启 DSH）生效。模型标识取自 `llm-pi-ai` 路由的 `models[].id`。
+- **按会话换模型**：快问弹窗自身没有模型选择器。删掉 `defaultModel`（和 `reasoningEffort`）即恢复「弹窗继承主对话」，再在输入框旁的模型控件或 `/model` 里切换，下一次请求生效。
+- 钉住的档位该模型不支持时会自动回退到最低可用档，不会让这次回答失败。
 
 ﻿
 ## 扩展点（给 agent / 开发者）
