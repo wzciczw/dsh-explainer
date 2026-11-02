@@ -1,8 +1,5 @@
 import * as React from 'react'
 import type { ExplainerStore } from './store'
-import { findComposerRect } from './selection'
-import { useStore } from './use-store'
-import type { Translate } from './overlay'
 
 /** The slice of `inputActions` the bridge uses. */
 interface InputActionsLike {
@@ -12,13 +9,16 @@ interface InputActionsLike {
 }
 
 /**
- * The composer entry does two jobs: it is the discoverable 快问 launcher, and
- * it publishes the current session's composer actions so the floating window
- * can insert text or hand a question back to the main conversation.
+ * The composer seat is headless: it publishes the current session's composer
+ * actions so the floating window can insert text or hand a question back to the
+ * main conversation, and it mirrors the main window's durable model selection.
+ *
+ * There is deliberately no launcher button in the input bar. The quick-ask
+ * window opens from a selection (pill / right-click), from the document
+ * toolbar, or with `Ctrl/Cmd+Shift+K`.
  */
-export function ComposerButton(props: {
+export function ComposerBridge(props: {
   store: ExplainerStore
-  t: Translate
   sessionId: string
   inputActions: InputActionsLike
   useInput: (select: (state: { draft: string }) => string) => string
@@ -26,10 +26,8 @@ export function ComposerButton(props: {
     key: string,
     select: (value: { next?: { provider?: string; model?: string } } | undefined) => unknown,
   ) => unknown
-}): React.ReactElement | null {
-  const { store, t, sessionId, inputActions } = props
-  const buttonRef = React.useRef<HTMLButtonElement | null>(null)
-  const enabled = useStore(store, snapshot => snapshot.config?.enabled !== false)
+}): null {
+  const { store, sessionId, inputActions } = props
   const draft = props.useInput(state => state.draft)
   const draftRef = React.useRef(draft)
   draftRef.current = draft
@@ -67,38 +65,5 @@ export function ComposerButton(props: {
     return () => { store.setBridge(null) }
   }, [store, sessionId, inputActions])
 
-  const open = (event: React.MouseEvent<HTMLButtonElement>): void => {
-    event.preventDefault()
-    // The launcher doubles as the window toggle: open, or close when already open.
-    if (store.getSnapshot().card !== null) {
-      store.close()
-      return
-    }
-    const anchor = findComposerRect() ?? buttonRef.current?.getBoundingClientRect()
-    if (anchor === undefined) return
-    store.openQuick({
-      left: anchor.left,
-      top: anchor.top,
-      right: anchor.right,
-      bottom: anchor.bottom,
-      width: anchor.width,
-      height: anchor.height,
-    })
-  }
-
-  if (!enabled) return null
-
-  return (
-    <button
-      ref={buttonRef}
-      type="button"
-      className="dx-launcher"
-      title={`${t('quickAsk')} (Ctrl+Shift+K)`}
-      aria-label={t('quickAsk')}
-      onClick={open}
-    >
-      <span className="dx-spark">✦</span>
-      {t('quickAsk')}
-    </button>
-  )
+  return null
 }

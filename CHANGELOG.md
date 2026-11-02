@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- The composer input bar no longer shows the 「✦ 快问」 launcher button. The quick-ask window keeps its other entry points — a selection (pill / right-click), the document toolbar's Ask action, and `Ctrl/Cmd+Shift+K` — and the composer slot stays mounted headlessly so "insert" and "send to main" plus the main-window model mirror keep working.
 - The quick-ask window now has one fixed size (520×560 CSS px, shrunk to fit small viewports): long answers scroll inside the transcript instead of resizing the card. The gray meta line (effort, latency, context size, sources) moved from the footer into the title bar, the composer is a fixed two-line box, and the send/stop arrow is gone — Enter sends, Shift+Enter inserts a newline, Esc stops a running answer.
 - Default `maxTokens` is now 4096 (was 800); mandatory-thinking models keep the 4096/8192 floor. The desktop profile pins `defaultModel: newapi/deepseek-flash` at `reasoningEffort: low` with `maxTokens: 4096`, so the window answers in the low-thinking tier (`ds-low`) instead of the lowest available one. The README now records where to change the pin: the profile's `cordis.patch.yml` (`explainer` row), or dropping `defaultModel` to follow the composer's model control.
 

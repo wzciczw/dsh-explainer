@@ -14,7 +14,7 @@ select text anywhere in the DSH Web GUI, and get a fast, isolated answer in plac
 - **Time-sensitive retrieval**: when a question/selection mentions latest/version/price/model/context, the host calls the `ctx.web.search` seam and injects up to `webSearchMaxResults` cited sources; the card shows the source count. No provider means the search is skipped, not a failure.
 - **Right-sidebar file context**: reads the selected file whole (read-only, workspace-contained); HTML is reduced to visible text before it reaches the model.
 - **Interactive diagrams**: a selection-mode toggle (or holding Alt/Option) suspends the page's pan/zoom pointer handler so native text selection works; the mode is scoped to one preview.
-- **Composer quick-ask is a sub-session**: `Ctrl/Cmd+Shift+K` inherits the same read-only conversation snapshot as a selection; follow-ups stay in that isolated thread.
+- **Composer quick-ask is a sub-session**: `Ctrl/Cmd+Shift+K` inherits the same read-only conversation snapshot as a selection; follow-ups stay in that isolated thread. The composer seat is headless — there is no launcher button in the input bar; the slot only publishes the insert/send-to-main bridge and mirrors the main-window model.
 
 ## Install
 

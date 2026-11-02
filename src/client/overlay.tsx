@@ -149,13 +149,13 @@ export function Overlay(props: {
     },
   }), [store])
 
-  // Clicking anywhere outside the window closes it. The launcher and the
-  // selection pill keep their own click behaviour.
+  // Clicking anywhere outside the window closes it. The selection pill keeps
+  // its own click behaviour.
   React.useEffect(() => {
     const onPointerDown = (event: PointerEvent): void => {
       const target = event.target as HTMLElement | null
       if (target === null) return
-      if (target.closest('.dx-card, .dx-pill, .dx-launcher') !== null) return
+      if (target.closest('.dx-card, .dx-pill') !== null) return
       store.close()
     }
     document.addEventListener('pointerdown', onPointerDown, true)
@@ -171,7 +171,7 @@ export function Overlay(props: {
       if (snapshot.config?.enabled === false || snapshot.config?.rightClick === false) return
       const target = event.target as HTMLElement | null
       if (target === null) return
-      if (target.closest('.dx-card, .dx-pill, .dx-launcher') !== null) return
+      if (target.closest('.dx-card, .dx-pill') !== null) return
       const found = readSelection()
       if (found === null) return
       event.preventDefault()

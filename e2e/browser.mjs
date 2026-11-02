@@ -86,10 +86,8 @@ await send('Page.enable')
 await send('Runtime.enable')
 await send('Page.navigate', { url: `${BASE}/?token=${TOKEN}` })
 
-await waitFor("document.querySelector('.dx-launcher') !== null", 'composer launcher')
-console.log('launcher:', await evaluate("document.querySelector('.dx-launcher').textContent"))
-
-await evaluate("document.querySelector('.dx-launcher').click()")
+await waitFor("document.querySelector('.dx-launcher') === null", 'no composer launcher')
+await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }))`)
 await waitFor("document.querySelector('.dx-card') !== null", 'quick-ask window')
 
 const typed = await evaluate(setInput('解释一下分支成本'))

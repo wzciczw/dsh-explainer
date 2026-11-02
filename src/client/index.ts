@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { ExplainerStore } from './store'
 import { Overlay } from './overlay'
-import { ComposerButton } from './composer'
+import { ComposerBridge } from './composer'
 import { FileMarker } from './file-marker'
 import { installHtmlPreviews } from './html-registration'
 import { STRINGS } from './locales'
@@ -72,11 +72,12 @@ export function apply(ctx: ClientContext): void {
   // never affects the core seats above.
   installHtmlPreviews(ctx, store, t)
 
+  // Headless seat: no visible launcher in the input bar, only the session bridge
+  // (insert / send to main) and the main-window model mirror.
   ctx.slots.inject('conversation.input.right', () => ctx.slots.register(
-    { name: 'conversation.input.right', id: 'explainer.quick', order: 260, label: () => t('quickAsk') },
-    (props: SlotProps) => React.createElement(ComposerButton, {
+    { name: 'conversation.input.right', id: 'explainer.quick', order: 260 },
+    (props: SlotProps) => React.createElement(ComposerBridge, {
       store,
-      t,
       sessionId: props['sessionId'] as string,
       inputActions: props['inputActions'] as never,
       useInput: props['useInput'] as never,

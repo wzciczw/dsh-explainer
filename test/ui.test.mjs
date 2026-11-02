@@ -66,6 +66,24 @@ function pressEnter(element) {
   element.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
 }
 
+// The input bar no longer renders a launcher, so the window opens from the
+// keyboard shortcut. jsdom has no layout, so the composer anchor gets a rect.
+function composerAnchor(parent) {
+  const element = document.createElement('div')
+  element.setAttribute('data-slot', 'conversation.composer')
+  element.getBoundingClientRect = () => ({
+    left: 40, top: 600, right: 800, bottom: 680, width: 760, height: 80, x: 40, y: 600,
+  })
+  parent.appendChild(element)
+  return element
+}
+
+function pressQuickAsk() {
+  dom.window.dispatchEvent(new dom.window.KeyboardEvent('keydown', {
+    key: 'k', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true,
+  }))
+}
+
 function sse(frames) {
   const encoder = new TextEncoder()
   return new Response(new ReadableStream({
@@ -133,9 +151,10 @@ test('a pinned default model labels the window and leads every request', async (
     await new Promise(resolve => setTimeout(resolve, 10))
   })
 
-  await act(async () => { container.querySelector('.dx-launcher').click() })
+  await act(async () => { composerAnchor(container); pressQuickAsk() })
   const card = container.querySelector('.dx-card')
   assert.ok(card !== null)
+  assert.equal(container.querySelector('.dx-launcher'), null, 'the input bar has no quick-ask button')
   const badge = card.querySelector('.dx-model')
   assert.ok(badge !== null, 'the window labels its default model')
   assert.equal(badge.textContent.trim(), 'gemini-3.8-flash')
@@ -217,7 +236,7 @@ test('a pinned model the catalog no longer lists falls back to the main chat mod
     await new Promise(resolve => setTimeout(resolve, 10))
   })
 
-  await act(async () => { container.querySelector('.dx-launcher').click() })
+  await act(async () => { composerAnchor(container); pressQuickAsk() })
   const card = container.querySelector('.dx-card')
   assert.ok(card !== null)
   assert.equal(card.querySelector('.dx-model').textContent.trim(), 'deepseek-flash')
@@ -261,6 +280,9 @@ test('the window opens, streams an answer and keeps follow-ups on one thread', a
 
   const composerElement = dom.window.document.createElement('div')
   composerElement.setAttribute('data-slot', 'conversation.composer')
+  composerElement.getBoundingClientRect = () => ({
+    left: 40, top: 600, right: 800, bottom: 680, width: 760, height: 80, x: 40, y: 600,
+  })
   document.body.appendChild(composerElement)
 
   const inputActions = {
@@ -289,9 +311,8 @@ test('the window opens, streams an answer and keeps follow-ups on one thread', a
     ))
   })
 
-  const launcher = container.querySelector('.dx-launcher')
-  assert.ok(launcher !== null, 'the composer launcher is rendered')
-  await act(async () => { launcher.click() })
+  assert.equal(container.querySelector('.dx-launcher'), null, 'the input bar has no quick-ask button')
+  await act(async () => { pressQuickAsk() })
   assert.ok(container.querySelector('.dx-card') !== null, 'the window opens')
 
   const textarea = container.querySelector('.dx-input')
