@@ -18,6 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- Right-click no longer swallows the native context menu by default. `rightClick` is now `false | 'alt' | true` with `'alt'` as the default: plain right-click copies normally, Alt/Option+right-click opens the card, `true` restores the old gesture, and `false` disables it. The rendered-HTML preview bridge honours the same mode instead of always calling `preventDefault()`.
 - Opening a new selection aborts the previous answer, drops its pending text and starts an empty card; the selection pill also appears while a card is open so the new selection can replace it.
 - Mandatory-thinking models (Gemini/Claude profiles without an `off` effort) no longer spend the whole 800-token answer budget on reasoning: the engine raises their output budget to 4096 (8192 for high/xhigh/max), leaving room for visible text.
 - A model provider that ignores abort no longer pins a concurrency slot: the engine races each stream against `timeoutMs` and releases it; the browser aborts a request that receives no first frame after 45s.

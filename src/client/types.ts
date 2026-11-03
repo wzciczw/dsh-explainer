@@ -74,6 +74,13 @@ export interface ModelGroup {
   models: Array<{ id: string; name: string }>
 }
 
+/**
+ * How right-click opens the window: `false` always keeps the native menu,
+ * `'alt'` requires Alt/Option so a plain right-click stays native, and `true`
+ * hijacks plain right-click (the pre-0.3.1 behaviour).
+ */
+export type RightClickMode = false | 'alt' | true
+
 /** Public configuration mirror served by GET /explainer/config. */
 export interface PublicConfig {
   enabled: boolean
@@ -85,7 +92,7 @@ export interface PublicConfig {
   maxTurns: number
   inheritContext: boolean
   showMeta: boolean
-  rightClick: boolean
+  rightClick: RightClickMode
   /** Start the default answer as soon as a recognized selection opens. */
   autoAnswer: boolean
   presets: string[]

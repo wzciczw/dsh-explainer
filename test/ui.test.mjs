@@ -358,10 +358,20 @@ test('the window opens, streams an answer and keeps follow-ups on one thread', a
   container.remove()
 })
 
-test('right-clicking a chat selection opens the window directly', async () => {
+test('right-click opens directly when rightClick is true', async () => {
   const registrations = harness()
   const overlay = registrations.find(item => item.options.id === 'explainer.window')
   assert.ok(overlay !== undefined)
+
+  dom.window.fetch = async (url) => {
+    if (String(url).includes('/explainer/config')) {
+      return new Response(JSON.stringify({ ok: true, config: {
+        enabled: true, showMeta: true, selectionMaxChars: 6000, inheritContext: true,
+        presets: [], rightClick: true, autoAnswer: false,
+      } }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+    return new Response('{}', { status: 200 })
+  }
 
   const container = document.createElement('div')
   document.body.appendChild(container)
@@ -370,6 +380,7 @@ test('right-clicking a chat selection opens the window directly', async () => {
 
   await act(async () => {
     root.render(React.createElement(overlay.component, { useSessions }))
+    await new Promise(resolve => setTimeout(resolve, 20))
   })
 
   const chat = document.createElement('div')
@@ -398,6 +409,63 @@ test('right-clicking a chat selection opens the window directly', async () => {
     document.body.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true }))
   })
   assert.equal(container.querySelector('.dx-card'), null)
+
+  await act(async () => { root.unmount() })
+  chat.remove()
+  container.remove()
+})
+
+test('alt mode keeps the native menu and opens with Alt+right-click', async () => {
+  const registrations = harness()
+  const overlay = registrations.find(item => item.options.id === 'explainer.window')
+  assert.ok(overlay !== undefined)
+
+  dom.window.fetch = async (url) => {
+    if (String(url).includes('/explainer/config')) {
+      return new Response(JSON.stringify({ ok: true, config: {
+        enabled: true, showMeta: true, selectionMaxChars: 6000, inheritContext: true,
+        presets: [], rightClick: 'alt', autoAnswer: false,
+      } }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+    return new Response('{}', { status: 200 })
+  }
+
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  const useSessions = (select) => select({ byId: { s1: { retainedBy: { mainView: 1 } } } })
+
+  await act(async () => {
+    root.render(React.createElement(overlay.component, { useSessions }))
+    await new Promise(resolve => setTimeout(resolve, 20))
+  })
+
+  const chat = document.createElement('div')
+  chat.setAttribute('data-slot', 'conversation.chat.flow')
+  chat.textContent = 'LayerFS 的 Branch 创建很便宜。'
+  document.body.appendChild(chat)
+
+  await act(async () => {
+    const range = document.createRange()
+    range.setStart(chat.firstChild, 0)
+    range.setEnd(chat.firstChild, 12)
+    const selection = dom.window.getSelection()
+    selection.removeAllRanges()
+    selection.addRange(range)
+    const plain = new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+    chat.dispatchEvent(plain)
+    assert.equal(plain.defaultPrevented, false, 'plain right-click keeps the native menu')
+  })
+  assert.equal(container.querySelector('.dx-card'), null, 'no card without Alt/Option')
+
+  await act(async () => {
+    const alt = new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true, altKey: true })
+    chat.dispatchEvent(alt)
+    assert.equal(alt.defaultPrevented, true, 'Alt+right-click opens the window')
+  })
+  const card = container.querySelector('.dx-card')
+  assert.ok(card !== null, 'Alt+right-click opens the card')
+  assert.match(card.querySelector('.dx-quote').textContent, /LayerFS/)
 
   await act(async () => { root.unmount() })
   chat.remove()
@@ -776,6 +844,9 @@ test('the window waits for the config before pinning the model', async () => {
   const root = createRoot(container)
   const useSessions = (select) => select({ byId: { s1: { retainedBy: { mainView: 1 } } } })
   await act(async () => { root.render(React.createElement(overlay.component, { useSessions })) })
+  // Let the deliberately slow config land before the gesture: until it does,
+  // the browser half assumes the modifier mode and a plain right-click is native.
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 400)) })
   const chat = document.createElement('div')
   chat.setAttribute('data-slot', 'conversation.chat.flow')
   chat.textContent = 'The cost of a branch is mostly in merging.'

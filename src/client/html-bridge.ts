@@ -1,4 +1,6 @@
-﻿/** The bridge document: the file's own HTML, plus one selection-reporting script. */
+/** The bridge document: the file's own HTML, plus one selection-reporting script. */
+
+import type { RightClickMode } from './types'
 
 export const HTML_BRIDGE = 'dsh-explainer/html-selection/v1'
 /** A rendered report is a working document, not an attachment; 8 MB is plenty. */
@@ -8,11 +10,18 @@ export const MAX_HTML_CHARS = 8_000_000
  * The script that runs inside the opaque preview frame. It only reads the
  * current selection and reports it to the parent; it has no file, model or
  * parent-DOM access, and it never sends anything the page did not select.
+ *
+ * Right-click is native by default: only Alt/Option+right-click (or an explicit
+ * `true` from the parent) opens the card, so the page's own context menu still
+ * offers copy/paste. The mode can be updated at runtime through a message.
  */
-export function childBridge(channel: string): void {
+export function childBridge(channel: string, initialRightClick: RightClickMode = 'alt'): void {
   let sequence = 0
   let timer = 0
   let selectionMode = false
+  let rightClickMode: RightClickMode = initialRightClick === true || initialRightClick === false
+    ? initialRightClick
+    : 'alt'
   const send = (action: string, payload: Record<string, unknown> = {}): void => {
     parent.postMessage({ type: 'dsh-explainer/html-selection/v1', channel, sequence: ++sequence, action, ...payload }, '*')
   }
@@ -50,9 +59,14 @@ export function childBridge(channel: string): void {
   }
   window.addEventListener('message', event => {
     if (event.source !== parent) return
-    const data = event.data as { type?: unknown; enabled?: unknown } | null
-    if (data !== null && typeof data === 'object' && data.type === 'dsh-explainer/selection-mode') {
+    const data = event.data as { type?: unknown; enabled?: unknown; mode?: unknown } | null
+    if (data === null || typeof data !== 'object') return
+    if (data.type === 'dsh-explainer/selection-mode') {
       applyMode(data.enabled === true)
+      return
+    }
+    if (data.type === 'dsh-explainer/right-click') {
+      rightClickMode = data.mode === true ? true : data.mode === false ? false : 'alt'
     }
   })
   document.addEventListener('pointerdown', () => send('outside'), true)
@@ -75,6 +89,8 @@ export function childBridge(channel: string): void {
     timer = window.setTimeout(report, 160)
   })
   document.addEventListener('contextmenu', event => {
+    if (rightClickMode === false) return
+    if (rightClickMode === 'alt' && !event.altKey) return
     const value = selected()
     if (value !== null) {
       event.preventDefault()
@@ -95,10 +111,14 @@ export function childBridge(channel: string): void {
 }
 
 /** Generate one opaque preview document that keeps the file's own rendering. */
-export function buildBridgeDocument(source: string, channel: string): string {
+export function buildBridgeDocument(
+  source: string,
+  channel: string,
+  rightClick: RightClickMode = 'alt',
+): string {
   if (source.length > MAX_HTML_CHARS) throw new Error('HTML 文件超过 8 MB，划词预览暂不支持这么大的文件。')
   if (!/^[a-f0-9]{32,}$/.test(channel)) throw new Error('Invalid preview identity')
-  const script = `<script>(${childBridge.toString()})(${JSON.stringify(channel)});</script>`
+  const script = `<script>(${childBridge.toString()})(${JSON.stringify(channel)}, ${JSON.stringify(rightClick)});</script>`
   // Insert before </body> when there is one so the bridge runs after the page's
   // own scripts; otherwise append (the document still executes top to bottom).
   const close = source.toLowerCase().lastIndexOf('</body>')

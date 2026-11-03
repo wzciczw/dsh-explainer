@@ -14,6 +14,7 @@ select text anywhere in the DSH Web GUI, and get a fast, isolated answer in plac
 - **Time-sensitive retrieval**: when a question/selection mentions latest/version/price/model/context, the host calls the `ctx.web.search` seam and injects up to `webSearchMaxResults` cited sources; the card shows the source count. No provider means the search is skipped, not a failure.
 - **Right-sidebar file context**: reads the selected file whole (read-only, workspace-contained); HTML is reduced to visible text before it reaches the model.
 - **Interactive diagrams**: a selection-mode toggle (or holding Alt/Option) suspends the page's pan/zoom pointer handler so native text selection works; the mode is scoped to one preview.
+- **Native right-click**: a plain right-click keeps the browser's context menu (copy/paste); Alt/Option+right-click opens the card. `rightClick` is `false | 'alt' | true` (default `'alt'`); `true` restores the pre-0.3.1 plain-right-click gesture.
 - **Composer quick-ask is a sub-session**: `Ctrl/Cmd+Shift+K` inherits the same read-only conversation snapshot as a selection; follow-ups stay in that isolated thread. The composer seat is headless — there is no launcher button in the input bar; the slot only publishes the insert/send-to-main bridge and mirrors the main-window model.
 
 ## Install
@@ -75,6 +76,7 @@ The plugin row's `defaultModel` is a pin: when it is set and the main chat still
     webSearch: true           # time-sensitive retrieval through ctx.web.search
     maxTokens: 4096
     fileAccess: true          # whole-file context for right-sidebar selections
+    rightClick: 'alt'         # plain right-click stays native; Alt/Option opens the card (true = old behaviour)
 ```
 
 Users change these knobs in their profile patch (`~/.dsh/profiles/<profile>/cordis.patch.yml`, row `explainer`); there is no model picker inside the quick-ask card. To change per session instead, drop `defaultModel` and switch the main window's model with the composer model control or `/model`.

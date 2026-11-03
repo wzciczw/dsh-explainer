@@ -1,7 +1,8 @@
-﻿import * as React from 'react'
+import * as React from 'react'
 import type { ExplainerStore } from './store'
 import { bindHtmlBridge } from './html-receiver'
 import { buildBridgeDocument, previewIdentity } from './html-bridge'
+import { useStore } from './use-store'
 
 type Translate = (key: string) => string
 
@@ -24,6 +25,9 @@ export function HtmlSelectionPreview(props: {
   const { source, path, sessionId, store, t } = props
   const frame = React.useRef<HTMLIFrameElement>(null)
   const [selectionMode, setSelectionMode] = React.useState(false)
+  // Right-click is native by default; the frame needs the current mode so it
+  // never swallows the page's own context menu.
+  const rightClickMode = useStore(store, snapshot => snapshot.config?.rightClick ?? 'alt')
   const prepared = React.useMemo<{ channel: string; html: string } | { error: string }>(() => {
     try {
       const channel = previewIdentity()
@@ -36,12 +40,12 @@ export function HtmlSelectionPreview(props: {
     if (!('html' in prepared)) return null
     return URL.createObjectURL(new Blob([prepared.html], { type: 'text/html' }))
   }, [prepared])
-  const sendMode = React.useCallback(() => {
-    frame.current?.contentWindow?.postMessage(
-      { type: 'dsh-explainer/selection-mode', enabled: selectionMode },
-      '*',
-    )
-  }, [selectionMode])
+  const sendModes = React.useCallback(() => {
+    const target = frame.current?.contentWindow
+    if (!target) return
+    target.postMessage({ type: 'dsh-explainer/selection-mode', enabled: selectionMode }, '*')
+    target.postMessage({ type: 'dsh-explainer/right-click', mode: rightClickMode }, '*')
+  }, [selectionMode, rightClickMode])
   React.useEffect(() => {
     const element = frame.current
     if (!element || url === null || !('channel' in prepared)) return
@@ -51,14 +55,14 @@ export function HtmlSelectionPreview(props: {
       outside: () => store.close(),
       escape: () => (store.getSnapshot().card?.phase === 'streaming' ? store.stop() : store.close()),
       enabled: () => store.getSnapshot().config?.enabled !== false,
-      rightClick: () => store.getSnapshot().config?.rightClick !== false,
+      rightClick: () => (store.getSnapshot().config?.rightClick ?? 'alt') !== false,
     })
     return dispose
   }, [url, prepared, path, sessionId, store])
   React.useEffect(() => {
     if (url === null) return
-    sendMode()
-  }, [url, sendMode])
+    sendModes()
+  }, [url, sendModes])
   React.useEffect(() => () => { if (url !== null) URL.revokeObjectURL(url) }, [url])
   if ('error' in prepared) return <p role="alert" className="dx-html-error">{prepared.error}</p>
   if (url === null) return <p className="dx-html-error">正在准备 HTML 预览…</p>
@@ -83,7 +87,7 @@ export function HtmlSelectionPreview(props: {
         sandbox="allow-scripts allow-popups allow-downloads allow-modals"
         referrerPolicy="no-referrer"
         title="HTML 划词预览"
-        onLoad={sendMode}
+        onLoad={sendModes}
       />
     </div>
   )

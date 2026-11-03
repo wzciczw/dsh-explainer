@@ -37,6 +37,13 @@ export interface ModelRoute {
   model: string
 }
 
+/**
+ * Right-click entry mode mirrored to the browser: `false` always keeps the
+ * native menu, `'alt'` opens only with Alt/Option held, `true` hijacks a plain
+ * right-click (the pre-0.3.1 behaviour).
+ */
+export type RightClickMode = false | 'alt' | true
+
 /** The model catalog as the browser needs to render it: never includes keys. */
 export interface ModelCatalog {
   /** Global deployment default (`agentDefaultModel`), when the service answers. */
@@ -182,7 +189,12 @@ export interface ExplainerConfig {
   inheritContext: boolean
   showMeta: boolean
   maxConcurrent: number
-  rightClick: boolean
+  /**
+   * How right-click opens the window: `false` always keeps the native menu,
+   * `'alt'` requires Alt/Option (plain right-click stays native), `true`
+   * hijacks plain right-click (the pre-0.3.1 behaviour).
+   */
+  rightClick: RightClickMode
   /** Search the web for time-sensitive questions before answering. */
   webSearch: boolean
   /** Maximum cited sources injected into the prompt. */

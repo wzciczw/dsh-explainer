@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Real-browser proof against the user's own report: the rendered document
  * keeps its scripts/figures and the bridge reports selections from it.
  *
@@ -50,7 +50,7 @@ const page = `<!doctype html><html><body>
   doc.dispatchEvent(new doc.defaultView.Event('pointerup', { bubbles: true }));
   await new Promise(resolve => setTimeout(resolve, 250));
   const hint = messages.find(item => item && item.action === 'hint');
-  doc.dispatchEvent(new doc.defaultView.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  doc.dispatchEvent(new doc.defaultView.MouseEvent('contextmenu', { bubbles: true, cancelable: true, altKey: true }));
   await new Promise(resolve => setTimeout(resolve, 120));
   document.querySelector('#result').textContent = JSON.stringify({
     heading,

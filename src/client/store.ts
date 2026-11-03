@@ -21,7 +21,7 @@ const DEFAULTS: PublicConfig = {
   maxTurns: 3,
   inheritContext: true,
   showMeta: true,
-  rightClick: true,
+  rightClick: 'alt',
   autoAnswer: true,
   presets: ['explain', 'translate', 'summary', 'example'],
   provider: null,

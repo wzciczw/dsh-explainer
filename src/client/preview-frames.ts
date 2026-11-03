@@ -1,12 +1,12 @@
-﻿import { filePathOf, readSelection, type DetectedSelection } from './selection'
-import type { RectLike } from './types'
+import { filePathOf, readSelection, type DetectedSelection } from './selection'
+import type { RectLike, RightClickMode } from './types'
 
 interface PreviewCallbacks {
   hint: (selection: DetectedSelection | null) => void
   open: (selection: DetectedSelection) => void
   pointerDown: () => void
   enabled: () => boolean
-  rightClick: () => boolean
+  rightClick: () => RightClickMode
   escape: () => void
 }
 
@@ -80,7 +80,9 @@ export function observePreviewFrames(owner: Document, callbacks: PreviewCallback
     const onChange = (): void => { if (!down) schedule(160) }
     const onScroll = (): void => { view.clearTimeout(timer); callbacks.hint(null) }
     const onContext = (event: MouseEvent): void => {
-      if (!callbacks.rightClick()) return
+      const mode = callbacks.rightClick()
+      if (mode === false) return
+      if (mode === 'alt' && !event.altKey) return
       const found = current()
       if (found === null) return
       event.preventDefault()

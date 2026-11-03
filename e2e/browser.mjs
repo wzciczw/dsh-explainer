@@ -133,7 +133,7 @@ const prevented = await evaluate(`(() => {
   const selection = window.getSelection();
   selection.removeAllRanges();
   selection.addRange(range);
-  const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+  const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, altKey: true });
   node.parentElement.dispatchEvent(event);
   return event.defaultPrevented;
 })()`)

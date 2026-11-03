@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict'
+import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 import test from 'node:test'
 import { JSDOM } from 'jsdom'
@@ -52,6 +52,7 @@ function fixture({ sandbox, recognized = true } = {}) {
   }
   return { dom, window, doc, root, frame, select, event, hints, opened, dispose,
     disable: () => { enabled = false }, noRightClick: () => { rightClick = false },
+    altRightClick: () => { rightClick = 'alt' }, alwaysRightClick: () => { rightClick = true },
     get down() { return down }, get escape() { return escape },
     close() { dispose(); window.close() },
   }
@@ -131,6 +132,21 @@ test('right-click and enabled settings are respected', async () => {
     assert.equal(f.hints.at(-1), null)
     f.event('keydown', { key: 'e', metaKey: true, shiftKey: true })
     assert.equal(f.opened.length, 1)
+  } finally { f.close() }
+})
+
+test('alt mode keeps the native menu unless Alt/Option is held', () => {
+  const f = fixture()
+  try {
+    f.altRightClick()
+    f.select()
+    assert.equal(f.event('contextmenu').defaultPrevented, false, 'plain right-click stays native')
+    assert.equal(f.opened.length, 0)
+    assert.equal(f.event('contextmenu', { altKey: true }).defaultPrevented, true, 'Alt+right-click opens')
+    assert.equal(f.opened.length, 1)
+    f.alwaysRightClick()
+    assert.equal(f.event('contextmenu').defaultPrevented, true, 'true restores the old gesture')
+    assert.equal(f.opened.length, 2)
   } finally { f.close() }
 })
 

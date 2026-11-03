@@ -1,4 +1,4 @@
-import type { ExplainerConfig, ModelRoute } from './types.js'
+import type { ExplainerConfig, ModelRoute, RightClickMode } from './types.js'
 
 /** Conservative default preset labels, localized on the client. */
 export const DEFAULT_PRESETS = ['explain', 'translate', 'summary', 'example'] as const
@@ -23,6 +23,24 @@ function str(value: unknown): string | undefined {
 
 function bool(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback
+}
+
+/**
+ * Default to the modifier gesture: a plain right-click must keep the browser's
+ * native menu (copy/paste), while Alt/Option+right-click opens the window.
+ * `true` restores the old plain-right-click behaviour; `false` disables the
+ * gesture entirely. Unknown strings fall back to the safe default.
+ */
+function rightClickMode(value: unknown): RightClickMode {
+  if (value === true) return true
+  if (value === false) return false
+  if (typeof value === 'string') {
+    const mode = value.trim().toLowerCase()
+    if (mode === 'alt' || mode === 'option') return 'alt'
+    if (mode === 'never' || mode === 'off' || mode === 'none') return false
+    if (mode === 'always' || mode === 'on') return true
+  }
+  return 'alt'
 }
 
 function presets(value: unknown): string[] {
@@ -95,7 +113,7 @@ export function normalizeConfig(raw: unknown): ExplainerConfig {
     inheritContext: bool(source.inheritContext, true),
     showMeta: bool(source.showMeta, true),
     maxConcurrent: int(source.maxConcurrent, 4, 1, 16),
-    rightClick: bool(source.rightClick, true),
+    rightClick: rightClickMode(source.rightClick),
     autoAnswer: bool(source.autoAnswer, true),
     webSearch: bool(source.webSearch, true),
     webSearchMaxResults: int(source.webSearchMaxResults, 4, 1, 8),

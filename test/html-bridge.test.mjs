@@ -29,6 +29,16 @@ test('a document without a body still gets the bridge', () => {
   assert.match(html, /dsh-explainer\/html-selection\/v1/)
 })
 
+test('the bridge receives the configured right-click mode', () => {
+  const alt = buildBridgeDocument('<p>x</p>', 'c'.repeat(32))
+  assert.match(alt, /, "alt"\);/, 'default is the Alt/Option gesture')
+  const always = buildBridgeDocument('<p>x</p>', 'c'.repeat(32), true)
+  assert.match(always, /, true\);/, 'true keeps the old plain right-click gesture')
+  const never = buildBridgeDocument('<p>x</p>', 'c'.repeat(32), false)
+  assert.match(never, /, false\);/, 'false never hijacks the native menu')
+  assert.match(alt, /dsh-explainer\/right-click/, 'the parent can update the mode at runtime')
+})
+
 test('huge files and forged channels are refused', () => {
   assert.throws(() => buildBridgeDocument('x'.repeat(MAX_HTML_CHARS + 1), 'a'.repeat(32)))
   assert.throws(() => buildBridgeDocument('<p>x</p>', 'nope'))

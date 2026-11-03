@@ -3,7 +3,7 @@ export const STRINGS = {
   zh: {
     quickAsk: '快问',
     askSelection: '问这段',
-    rightClickHint: '选中文字后，右键也能直接打开',
+    rightClickHint: '选中文字后，按住 Alt/Option 再右键可直接打开；普通右键保留系统菜单',
     askFile: '问一下',
     selectionMode: '划词模式',
     selectionModeOn: '退出划词',
@@ -69,7 +69,7 @@ export const STRINGS = {
   en: {
     quickAsk: 'Quick Ask',
     askSelection: 'Ask about this',
-    rightClickHint: 'Right-click a selection to open this window',
+    rightClickHint: 'Alt/Option+right-click a selection opens this window; plain right-click keeps the native menu',
     askFile: 'Ask',
     selectionMode: 'Select mode',
     selectionModeOn: 'Exit select mode',

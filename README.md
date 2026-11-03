@@ -53,8 +53,8 @@ dsh plugin --profile <profile> add dsh-explainer
 
 ## 功能
 
-- **划词问**：选中对话里的文字 → 出现「✦ 问这段」→ 点击、**右键**或 `Ctrl/Cmd+Shift+E` 打开窗口。
-- **右侧栏文件也能用**：原生 document preview 和 better-sidebar 的编辑器里都能划词/右键，默认读取该文件全文作为上下文（仅工作区内，只读）。**HTML 文件默认就能在渲染后的页面里划词**（插件自己的 renderer，iframe 仍是不透明 sandbox）；不想运行页面脚本时可在查看器菜单切回内置预览。可访问的同源 iframe 也能划词（仅识别出的文件预览）。
+- **划词问**：选中对话里的文字 → 出现「✦ 问这段」→ 点击或 `Ctrl/Cmd+Shift+E` 打开窗口；需要右键入口时按住 **Alt/Option 再右键**（普通右键保留系统菜单，复制/粘贴照常）。
+- **右侧栏文件也能用**：原生 document preview 和 better-sidebar 的编辑器里都能划词/Alt+右键，默认读取该文件全文作为上下文（仅工作区内，只读）。**HTML 文件默认就能在渲染后的页面里划词**（插件自己的 renderer，iframe 仍是不透明 sandbox）；不想运行页面脚本时可在查看器菜单切回内置预览。可访问的同源 iframe 也能划词（仅识别出的文件预览）。
 - **快问**：`Ctrl/Cmd+Shift+K` 打开同一张卡片，不带引用；输入栏里没有按钮，窗口只从快捷键（或划词、文档工具栏）打开。它同样继承主会话的只读快照（像一个子会话），追问留在同一线程。
 - **默认继承主对话模型**：不配置时读取主窗口的 `modelSelection` 投影，每次请求都带同一个 `provider/model`；主窗口切换后立即跟随。**配置了 `defaultModel` 时，钉住的模型优先**（即使主窗口在别的模型），本机即固定走 `newapi/deepseek-flash` + 低思考档（`reasoningEffort: low`，即 `ds-low`）。
 - **也可以钉在某个可选模型上**：在插件行写 `defaultModel: provider/model`，从主对话能选的模型里挑一个作为弹窗默认（本机配置为 `newapi/deepseek-flash`，`reasoningEffort: low`）。弹窗标题会标示当前模型；某次请求仍可显式指定别的路由，钉住的是默认而非锁定。
@@ -87,7 +87,7 @@ dsh plugin --profile <profile> add dsh-explainer
 
 - 文件按原样渲染：内联样式、`<script>`、data 图片、页面自己的交互都保留；
 - iframe 占满侧边栏（不再是默认的 300×150），仍是**不透明 sandbox**（`allow-scripts`，没有 `allow-same-origin`），页面拿不到应用 DOM、Cookie 或会话；
-- 页面里划词 → 出现「✦ 问这段」；右键直接开卡片；选区只在本帧内读取。
+- 页面里划词 → 出现「✦ 问这段」；`Alt/Option+右键` 直接开卡片（普通右键保留页面自己的菜单）；选区只在本帧内读取。
 - 交互式图（可缩放/拖动画布）会拦截 pointerdown，导致拖不出选区：点预览左下角「划词模式」，或按住 `Alt/Option` 拖动即可；模式内页面的拖拽/缩放暂停，退出后恢复。
 
 桥接脚本只做一件事：把当前选区（文本 + 位置）发给父页面。父页面只接受**来自这一帧**、通道匹配、序号递增、频率受限、字段与坐标都在范围内的消息。桥接消息本身不会触发模型；卡片打开后由卡片自己的默认回答自动发送（输入即取消，或配置 `autoAnswer: false` 关闭）。
@@ -97,7 +97,8 @@ dsh plugin --profile <profile> add dsh-explainer
 
 | 操作 | 键 / 手势 |
 |---|---|
-| 划词问 | 选中文字 → 点「✦ 问这段」，或直接右键 |
+| 划词问 | 选中文字 → 点「✦ 问这段」 |
+| 划词问（右键） | 选中文字 → `Alt/Option+右键`（普通右键走系统菜单） |
 | 划词问（键盘） | 选中文字 → `Ctrl/Cmd+Shift+E` |
 | 快问 | `Ctrl/Cmd+Shift+K`（输入栏不再有按钮） |
 | 发送 / 追问 | `Enter` |
@@ -160,7 +161,7 @@ npm run build
     selectionMaxChars: 6000 # 选段上限
     timeoutMs: 30000
     maxConcurrent: 4
-    rightClick: true        # 选中文字后右键直接打开
+    rightClick: 'alt'       # false=不劫持右键；'alt'=Alt/Option+右键打开（默认）；true=普通右键直接打开（会吞系统菜单）
     autoAnswer: true        # 英文正文/术语划词后自动开始默认回答（输入即取消）
     webSearch: true         # 时效问题（最新/版本/价格/模型/上下文）自动联网
     webSearchMaxResults: 4  # 最多引用的来源数
@@ -206,7 +207,7 @@ npm run build
 ## 架构
 
 ```
-选中文字 / 右键 ──▶ client store ──▶ POST /explainer/ask (SSE)
+选中文字 / Alt+右键 ──▶ client store ──▶ POST /explainer/ask (SSE)
                                       │
                                       ├─ 读主会话最近消息（只读快照，仅新建线程时）
                                       ├─ 解析模型（主窗口优先）+ 最低 effort
@@ -236,7 +237,7 @@ npm run typecheck
 npm test             # 构建 + node --test test/*.test.mjs
 ```
 
-测试覆盖（29 项）：配置边界、`defaultModel` 解析与优先级、模型目录枚举（含 provider 报错与脏数据）、会话快照、线程 LRU/TTL、引擎（继承一次/追问/模型优先级/钉住模型/并发/effort/会话日志不变）、文件快照与越界拒绝、右侧栏文件全文上下文、HTTP 路由与 SSE、bundle 冒烟、jsdom UI（流式/追问/插入/点外关闭/右键打开/原生预览路径/better-sidebar 编辑器路径/工具栏问文件/钉住模型徽标与请求路由/失效回退）。
+测试覆盖（29 项）：配置边界、`defaultModel` 解析与优先级、模型目录枚举（含 provider 报错与脏数据）、会话快照、线程 LRU/TTL、引擎（继承一次/追问/模型优先级/钉住模型/并发/effort/会话日志不变）、文件快照与越界拒绝、右侧栏文件全文上下文、HTTP 路由与 SSE、bundle 冒烟、jsdom UI（流式/追问/插入/点外关闭/Alt+右键打开/原生预览路径/better-sidebar 编辑器路径/工具栏问文件/钉住模型徽标与请求路由/失效回退）。
 
 
 ## 端到端（真实浏览器）
@@ -257,7 +258,7 @@ npm test             # 构建 + node --test test/*.test.mjs
 5. `chrome --headless=new --remote-debugging-port=9223 ...`
 6. `EXPLAINER_TOKEN='...' node e2e/browser.mjs`
 
-验证内容：启动页、`/explainer/config`、SSE、选区胶囊、划词引用、右键打开、追问、点外关闭、`Esc`。
+验证内容：启动页、`/explainer/config`、SSE、选区胶囊、划词引用、Alt+右键打开、追问、点外关闭、`Esc`。
 
 
 ## 安全与隐私
@@ -276,7 +277,7 @@ HTML 文件现在默认由本插件的 renderer 打开：原始 HTML 放进 Blob
 
 真实浏览器验证：
 - `node e2e/preview-frame-boundary.mjs`：同源 iframe 划词、opaque 拒绝、伪造消息无效；
-- `node e2e/html-render-bridge.mjs`：直接加载用户的 `report.html`，确认标题渲染、iframe 不透明、划词产生 hint、右键能打开；
+- `node e2e/html-render-bridge.mjs`：直接加载用户的 `report.html`，确认标题渲染、iframe 不透明、划词产生 hint、Alt+右键能打开；
 - `node e2e/interactive-selection.mjs`：交互图在页面 pointerdown 阻止默认行为时，划词模式/Alt 仍能产生原生选区。
 
 

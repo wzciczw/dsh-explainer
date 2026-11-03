@@ -142,7 +142,7 @@ export function Overlay(props: {
     open: found => store.openSelection(found.rect, found.text, found.filePath),
     pointerDown: () => store.close(),
     enabled: () => store.getSnapshot().config?.enabled !== false,
-    rightClick: () => store.getSnapshot().config?.rightClick !== false,
+    rightClick: () => store.getSnapshot().config?.rightClick ?? 'alt',
     escape: () => {
       if (store.getSnapshot().card?.phase === 'streaming') store.stop()
       else store.close()
@@ -162,13 +162,15 @@ export function Overlay(props: {
     return () => { document.removeEventListener('pointerdown', onPointerDown, true) }
   }, [store])
 
-  // Selecting text and right-clicking opens the window directly. Registered in
-  // the capture phase so a host menu cannot swallow it, and only when the
-  // capture is a valid chat selection.
+  // Alt/Option+right-click opens the window directly (and plain right-click
+  // keeps the native menu). Registered in the capture phase so a host menu
+  // cannot swallow it, and only when the capture is a valid chat selection.
   React.useEffect(() => {
     const onContextMenu = (event: MouseEvent): void => {
       const snapshot = store.getSnapshot()
-      if (snapshot.config?.enabled === false || snapshot.config?.rightClick === false) return
+      const mode = snapshot.config?.rightClick ?? 'alt'
+      if (snapshot.config?.enabled === false || mode === false) return
+      if (mode === 'alt' && !event.altKey) return
       const target = event.target as HTMLElement | null
       if (target === null) return
       if (target.closest('.dx-card, .dx-pill') !== null) return
